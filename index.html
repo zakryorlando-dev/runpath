@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>RunPath</title>
+
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="RunPath">
+  <meta name="theme-color" content="#0d1117">
+
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <link rel="icon" type="image/png" href="icon-192.png">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- HOME -->
+  <section id="screen-home" class="screen active">
+    <header class="home-header">
+      <h1>RunPath</h1>
+      <p class="tagline">Track it. Map it. Share it.</p>
+    </header>
+
+    <div class="home-actions">
+      <button id="btn-start" class="btn-primary">Start Run</button>
+      <button id="btn-demo" class="btn-ghost">Simulate a demo run</button>
+    </div>
+
+    <div class="history-wrap">
+      <h2>History</h2>
+      <div id="history-list"></div>
+      <p id="history-empty" class="muted">No runs yet — your first one starts above.</p>
+    </div>
+  </section>
+
+  <!-- ACTIVE RUN -->
+  <section id="screen-run" class="screen">
+    <div id="run-map" class="map"></div>
+
+    <div id="gps-status" class="gps-status">Waiting for GPS…</div>
+
+    <div class="run-panel">
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-value" id="stat-time">0:00</div>
+          <div class="stat-label">Time</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="stat-dist">0.00</div>
+          <div class="stat-label">Miles</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="stat-pace">--:--</div>
+          <div class="stat-label">/ Mile</div>
+        </div>
+      </div>
+      <div class="run-controls">
+        <button id="btn-pause" class="btn-round btn-pause">Pause</button>
+        <button id="btn-stop" class="btn-round btn-stop">Finish</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- RUN DETAIL -->
+  <section id="screen-detail" class="screen">
+    <div id="detail-map" class="map"></div>
+
+    <div class="detail-panel">
+      <div class="detail-head">
+        <button id="btn-back" class="btn-ghost small">&larr; Back</button>
+        <span id="detail-date" class="muted"></span>
+      </div>
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-value" id="d-dist">0.00</div>
+          <div class="stat-label">Miles</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="d-time">0:00</div>
+          <div class="stat-label">Time</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="d-pace">--:--</div>
+          <div class="stat-label">/ Mile</div>
+        </div>
+      </div>
+      <div class="detail-actions">
+        <button id="btn-share" class="btn-primary">Share Route Card</button>
+        <div class="detail-actions-row">
+          <button id="btn-gpx" class="btn-ghost small">Export GPX</button>
+          <button id="btn-delete" class="btn-ghost small danger">Delete</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <canvas id="share-canvas" width="1080" height="1350" hidden></canvas>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
