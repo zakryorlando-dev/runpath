@@ -965,7 +965,7 @@ function importGpxText(text) {
   showDetail(run);
 }
 
-/* ---------- demo mode ---------- */
+/* ---------- demo mode (no button; run `startRun(true)` from a console) ---------- */
 
 function demoRoute() {
   // squiggly ~2.2 mi loop around Golden Gate Park
@@ -1003,7 +1003,6 @@ function startDemoPlayback() {
 /* ---------- wire up ---------- */
 
 $("#btn-start").addEventListener("click", () => startRun(false));
-$("#btn-demo").addEventListener("click", () => startRun(true));
 $("#btn-import").addEventListener("click", () => $("#gpx-input").click());
 $("#gpx-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
