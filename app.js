@@ -122,6 +122,132 @@ function renderHistory() {
   }
 }
 
+/* ---------- progress ----------
+   Weekly totals, a twelve-week bar chart and a month calendar, so a run has
+   somewhere to land beyond the history list. */
+
+function startOfWeek(d) {                 // weeks run Monday to Sunday
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+function fmtDuration(ms) {
+  const mins = Math.round(ms / 60000);
+  if (mins < 60) return `${mins}m`;
+  return `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, "0")}m`;
+}
+
+function weekBuckets(runs, count) {
+  const thisWeek = startOfWeek(new Date());
+  const weeks = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const from = new Date(thisWeek);
+    from.setDate(from.getDate() - i * 7);
+    const to = new Date(from);
+    to.setDate(to.getDate() + 7);
+    const mine = runs.filter((r) => r.date >= +from && r.date < +to);
+    weeks.push({
+      from,
+      miles: mine.reduce((a, r) => a + runDistance(r), 0) / MI,
+      ms: mine.reduce((a, r) => a + r.durationMs, 0),
+      count: mine.length,
+    });
+  }
+  return weeks;
+}
+
+function drawWeekChart(weeks) {
+  const W = 320, H = 96, pad = 14, n = weeks.length;
+  const peak = Math.max(1, ...weeks.map((w) => w.miles));
+  const slot = W / n, barW = Math.min(16, slot * 0.55);
+  const usable = H - pad - 16;
+
+  let bars = "", labels = "", lastMonth = -1;
+  weeks.forEach((w, i) => {
+    const x = i * slot + (slot - barW) / 2;
+    const height = Math.max(w.miles > 0 ? 3 : 2, (w.miles / peak) * usable);
+    const y = pad + usable - height;
+    const cls = w.miles === 0 ? "bar empty" : i === n - 1 ? "bar current" : "bar";
+    bars += `<rect class="${cls}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" ` +
+            `width="${barW.toFixed(1)}" height="${height.toFixed(1)}" rx="3"/>`;
+    const month = w.from.getMonth();
+    if (month !== lastMonth) {
+      lastMonth = month;
+      const name = w.from.toLocaleDateString(undefined, { month: "short" });
+      labels += `<text class="tick" x="${(i * slot + slot / 2).toFixed(1)}" ` +
+                `y="${H - 2}" text-anchor="middle">${name}</text>`;
+    }
+  });
+
+  $("#week-chart").innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Weekly distance, last 12 weeks">` +
+    `<line class="grid" x1="0" y1="${pad + usable}" x2="${W}" y2="${pad + usable}"/>` +
+    bars + labels + `</svg>`;
+
+  $("#chart-peak").textContent = peak > 1 ? `peak ${peak.toFixed(1)} mi` : "";
+}
+
+function drawCalendar(runs) {
+  const now = new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  $("#cal-month").textContent =
+    now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const ran = new Set(
+    runs.filter((r) => {
+      const d = new Date(r.date);
+      return d.getFullYear() === year && d.getMonth() === month;
+    }).map((r) => new Date(r.date).getDate())
+  );
+
+  const first = new Date(year, month, 1);
+  const offset = (first.getDay() + 6) % 7;              // Monday-first
+  const days = new Date(year, month + 1, 0).getDate();
+
+  let html = ["M", "T", "W", "T", "F", "S", "S"]
+    .map((d) => `<div class="cal-dow">${d}</div>`).join("");
+  for (let i = 0; i < offset; i++) html += `<div class="cal-day blank"></div>`;
+  for (let day = 1; day <= days; day++) {
+    const cls = ["cal-day"];
+    if (ran.has(day)) cls.push("ran");
+    if (day === now.getDate()) cls.push("today");
+    html += `<div class="${cls.join(" ")}">${day}</div>`;
+  }
+  $("#calendar").innerHTML = html;
+}
+
+// the home screen is the history list plus the progress panel; redraw together
+function refreshHome() {
+  renderHistory();
+  renderProgress();
+}
+
+function renderProgress() {
+  const runs = loadRuns();
+  // nothing to chart before the first run; don't greet anyone with empty axes
+  document.querySelector(".progress-wrap").hidden = runs.length === 0;
+  if (!runs.length) return;
+
+  const weeks = weekBuckets(runs, 12);
+  const current = weeks[weeks.length - 1];
+
+  $("#wk-dist").textContent = current.miles.toFixed(2);
+  $("#wk-time").textContent = fmtDuration(current.ms);
+  $("#wk-runs").textContent = current.count;
+
+  // consecutive weeks with a run; this week not counting against you yet
+  let i = weeks.length - 1, streak = 0;
+  if (weeks[i].count === 0) i--;
+  for (; i >= 0 && weeks[i].count > 0; i--) streak++;
+  $("#streak-note").textContent =
+    streak ? `${streak} week${streak > 1 ? "s" : ""} in a row` : "no streak yet";
+
+  drawWeekChart(weeks);
+  drawCalendar(runs);
+}
+
 /* ---------- path smoothing ----------
    GPS wanders a few metres either side of where you actually are, which makes
    a straight street look like a wobbly line and inflates the distance. A short
@@ -464,7 +590,7 @@ function stopRun() {
 
   if (run.distanceM < 20 || run.segments.length === 0) {
     alert("Run was too short to save.");
-    renderHistory();
+    refreshHome();
     show("home");
     return;
   }
@@ -478,7 +604,7 @@ function stopRun() {
   setSnapUI("Snapping to street...", true);
   snapRun(run, { silent: true }).then((ok) => {
     if (state.currentRun === run) showDetail(run);
-    if (ok) renderHistory();
+    if (ok) refreshHome();
   });
 }
 
@@ -519,7 +645,7 @@ function showDetail(run) {
 function deleteCurrentRun() {
   if (!confirm("Delete this run permanently?")) return;
   saveRuns(loadRuns().filter((r) => r.id !== state.currentRun.id));
-  renderHistory();
+  refreshHome();
   show("home");
 }
 
@@ -1010,7 +1136,7 @@ $("#gpx-input").addEventListener("change", (e) => {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
-    try { importGpxText(reader.result); renderHistory(); }
+    try { importGpxText(reader.result); refreshHome(); }
     catch (err) { alert(`Couldn't import: ${err.message}`); }
   };
   reader.readAsText(file);
@@ -1019,7 +1145,7 @@ $("#btn-pause").addEventListener("click", togglePause);
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
 $("#btn-wake").addEventListener("click", (e) => { e.stopPropagation(); hideDim(); armDim(); });
 $("#btn-stop").addEventListener("click", stopRun);
-$("#btn-back").addEventListener("click", () => { renderHistory(); show("home"); });
+$("#btn-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-share").addEventListener("click", shareRun);
 $("#btn-snap").addEventListener("click", snapCurrentRun);
 $("#btn-gpx").addEventListener("click", exportGpx);
@@ -1027,7 +1153,7 @@ $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
 setDimPref(loadDimPref());
 migrateRuns();
-renderHistory();
+refreshHome();
 
 if ("serviceWorker" in navigator &&
     (location.protocol === "https:" || location.hostname === "localhost")) {

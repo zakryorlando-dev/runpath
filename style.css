@@ -199,3 +199,72 @@ html, body {
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
+
+
+/* ---------- progress: week totals, 12-week chart, month calendar ---------- */
+
+.progress-wrap { margin-top: 30px; }
+.progress-wrap[hidden] { display: none; }
+.progress-wrap h2,
+.section-head {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 24px;
+}
+.section-head .muted { text-transform: none; letter-spacing: 0; font-size: 12px; }
+
+.week-stats {
+  display: flex;
+  justify-content: space-between;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 8px;
+}
+.ws { flex: 1; text-align: center; }
+.ws-value { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.ws-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+.chart { width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart .bar { fill: var(--accent); }
+.chart .bar.empty { fill: #263041; }
+.chart .bar.current { fill: #7af5c6; }
+.chart .grid { stroke: var(--border); stroke-width: 1; }
+.chart .tick { fill: var(--muted); font-size: 9px; }
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+.cal-dow {
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  padding-bottom: 2px;
+}
+.cal-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 13px;
+  color: var(--muted);
+  border: 1px solid transparent;
+}
+.cal-day.blank { visibility: hidden; }
+.cal-day.today { border-color: var(--text); color: var(--text); }
+/* a day you ran fills in, the way a streak calendar should read at a glance */
+.cal-day.ran { background: var(--accent); color: #04150d; font-weight: 700; }
+.cal-day.ran.today { border-color: var(--text); }

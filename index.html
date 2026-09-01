@@ -33,6 +33,36 @@
       <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden>
     </div>
 
+    <section class="progress-wrap">
+      <h2>This week</h2>
+      <div class="week-stats">
+        <div class="ws">
+          <div class="ws-value" id="wk-dist">0.00</div>
+          <div class="ws-label">Miles</div>
+        </div>
+        <div class="ws">
+          <div class="ws-value" id="wk-time">0m</div>
+          <div class="ws-label">Time</div>
+        </div>
+        <div class="ws">
+          <div class="ws-value" id="wk-runs">0</div>
+          <div class="ws-label">Runs</div>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <span>Last 12 weeks</span>
+        <span class="muted" id="chart-peak"></span>
+      </div>
+      <div id="week-chart" class="chart"></div>
+
+      <div class="section-head">
+        <span id="cal-month"></span>
+        <span class="muted" id="streak-note"></span>
+      </div>
+      <div id="calendar" class="calendar"></div>
+    </section>
+
     <div class="history-wrap">
       <h2>History</h2>
       <div id="history-list"></div>
