@@ -333,15 +333,31 @@ function startWatching() {
     return;
   }
   state.watchId = navigator.geolocation.watchPosition(
-    (pos) => onPoint(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, pos.timestamp),
+    (pos) => onPoint(pos.coords.latitude, pos.coords.longitude,
+                     pos.coords.accuracy, pos.timestamp, pos.coords.speed),
     (err) => { $("#gps-status").textContent = "GPS error — check location permission"; },
     { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
   );
 }
 
-function onPoint(lat, lng, acc, t) {
+/* Standing still, a phone still reports movement: fixes wander around your
+   actual position and every wander gets counted. Eight minutes stationary
+   downtown recorded 140 m of it. Two gates stop that. First the phone's own
+   speed reading, which comes from Doppler rather than from comparing
+   positions and so knows the difference between drifting and walking. Then a
+   step has to be bigger than the fix's stated accuracy - movement smaller
+   than the uncertainty isn't movement. */
+
+const MOVE = {
+  minStep: 4,        // m - never count a step smaller than this
+  accFactor: 0.75,   // ...or smaller than this much of the fix's own error bar
+  minSpeed: 0.5,     // m/s (1.1 mph) - slower than any real walk
+  maxAcc: 35,        // m - fixes vaguer than this are ignored outright
+};
+
+function onPoint(lat, lng, acc, t, speed) {
   if (!state.tracking || state.paused) return;
-  if (acc > 40) { $("#gps-status").textContent = "Weak GPS signal…"; return; }
+  if (acc > MOVE.maxAcc) { $("#gps-status").textContent = "Weak GPS signal…"; return; }
 
   const seg = state.segments[state.segments.length - 1];
   const p = { lat, lng, t };
@@ -358,8 +374,15 @@ function onPoint(lat, lng, acc, t) {
     const d = haversine(last, p);
     const dt = (t - last.t) / 1000;
     if (dt <= 0) return;
-    if (d / dt > 12.5) return;        // >12.5 m/s: GPS jump, discard
-    if (d < 2) { updateMarker(p); return; }  // jitter: don't accumulate
+    if (d / dt > 12.5) return;                     // >12.5 m/s: GPS jump
+    if (typeof speed === "number" && speed >= 0 && speed < MOVE.minSpeed) {
+      updateMarker(p);                             // the phone says you're still
+      return;
+    }
+    if (d < Math.max(MOVE.minStep, MOVE.accFactor * acc)) {
+      updateMarker(p);                             // inside the noise
+      return;
+    }
     seg.push(p);
   }
 
