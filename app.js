@@ -511,7 +511,11 @@ function saveBlob(blob, filename) {
 async function exportGpx() {
   const run = state.currentRun;
   const gpx = buildGpx(run);
-  const name = `runpath-${new Date(run.date).toISOString().slice(0, 10)}.gpx`;
+  const d = new Date(run.date);
+  const pad = (n) => String(n).padStart(2, "0");
+  // local date + time, so two runs on the same day don't collide in a folder
+  const name = `runpath-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+               `-${pad(d.getHours())}${pad(d.getMinutes())}.gpx`;
 
   // iOS ignores <a download> inside a home-screen app, so go through the share
   // sheet — that is what offers "Save to Files" and lets you pick the folder.
