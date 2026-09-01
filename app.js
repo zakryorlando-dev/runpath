@@ -440,6 +440,13 @@ function stopRun() {
   runs.unshift(run);
   saveRuns(runs);
   showDetail(run);
+
+  // put it on the street without being asked; stays raw if there's no signal
+  setSnapUI("Snapping to street...", true);
+  snapRun(run, { silent: true }).then((ok) => {
+    if (state.currentRun === run) showDetail(run);
+    if (ok) renderHistory();
+  });
 }
 
 /* ---------- run detail ---------- */
@@ -451,7 +458,7 @@ function showDetail(run) {
   const tag = run.demo ? " · demo" : run.imported ? " · imported" : "";
   $("#detail-date").textContent =
     fmtDate(run.date) + tag + (run.snapped ? " · on street" : "");
-  $("#btn-snap").textContent = run.snapped ? "Show raw GPS" : "Snap to street";
+  setSnapUI();
   $("#d-dist").textContent = (runDistance(run) / MI).toFixed(2);
   $("#d-time").textContent = fmtTime(run.durationMs);
   $("#d-pace").textContent = fmtPace(run.durationMs, runDistance(run));
@@ -575,7 +582,7 @@ async function shareRun() {
 /* ---------- GPX export (importable into Strava) ---------- */
 
 function buildGpx(run) {
-  const segs = run.segments.map((seg) =>
+  const segs = runPath(run).map((seg) =>
     "    <trkseg>\n" +
     seg.map((p) =>
       `      <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><time>${new Date(p.t).toISOString()}</time></trkpt>`
@@ -821,23 +828,16 @@ function matchSegment(seg, graph, frame) {
     idx = back[i][idx];
     chain.unshift(cands[i][idx]);
   }
-  return chain.map((c) => ({ lat: c.y / frame.my, lng: c.x / frame.mx }));
+  return chain.map((c, i) => ({ lat: c.y / frame.my, lng: c.x / frame.mx, t: seg[i].t }));
 }
 
-async function snapToStreets() {
-  const run = state.currentRun;
-  const btn = $("#btn-snap");
-
-  if (run.snapped) {                        // toggle back to the recorded trace
-    delete run.snapped;
-    delete run.snappedDistanceM;
-    persistRun(run);
-    showDetail(run);
-    return;
-  }
-
+/* Pull one run onto the street network. Returns true if it worked. Silent
+   failures matter: a run that finishes out of signal should just stay raw and
+   offer the button, not throw an alert at someone who has just stopped. */
+async function snapRun(run, { silent = false } = {}) {
   const all = run.segments.flat();
-  if (all.length < 2) return;
+  if (all.length < 2 || run.snapped) return false;
+
   const lats = all.map((p) => p.lat), lngs = all.map((p) => p.lng);
   const pad = 0.0018;                       // ~200 m of margin around the run
   const bounds = {
@@ -846,12 +846,8 @@ async function snapToStreets() {
   };
   const frame = localFrame((bounds.s + bounds.n) / 2);
 
-  btn.disabled = true;
-  btn.textContent = "Fetching streets...";
   try {
     const graph = await fetchStreetGraph(bounds, frame);
-    btn.textContent = "Matching...";
-    await new Promise((r) => setTimeout(r, 0));   // let the label paint
     const snapped = run.segments.map((seg) => matchSegment(seg, graph, frame));
     if (snapped.some((s) => !s)) {
       throw new Error("part of the route is too far from any mapped street");
@@ -859,13 +855,27 @@ async function snapToStreets() {
     run.snapped = snapped;
     run.snappedDistanceM = Math.round(pathDistance(snapped));
     persistRun(run);
-    showDetail(run);
+    return true;
   } catch (err) {
-    alert(`Couldn't snap to street: ${err.message}`);
-    btn.textContent = "Snap to street";
-  } finally {
-    btn.disabled = false;
+    if (!silent) alert(`Couldn't snap to street: ${err.message}`);
+    return false;
   }
+}
+
+function setSnapUI(stateText, busy) {
+  const btn = $("#btn-snap");
+  const run = state.currentRun;
+  // once a run is on the street there is nothing to toggle, so the button goes
+  btn.hidden = !!(run && run.snapped) && !busy;
+  btn.disabled = !!busy;
+  btn.textContent = stateText || "Snap to street";
+}
+
+async function snapCurrentRun() {
+  setSnapUI("Snapping to street...", true);
+  await new Promise((r) => setTimeout(r, 0));      // let the label paint
+  await snapRun(state.currentRun);
+  showDetail(state.currentRun);
 }
 
 /* ---------- GPX import (runs recorded on a watch or another app) ---------- */
@@ -978,7 +988,7 @@ $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
 $("#btn-stop").addEventListener("click", stopRun);
 $("#btn-back").addEventListener("click", () => { renderHistory(); show("home"); });
 $("#btn-share").addEventListener("click", shareRun);
-$("#btn-snap").addEventListener("click", snapToStreets);
+$("#btn-snap").addEventListener("click", snapCurrentRun);
 $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
