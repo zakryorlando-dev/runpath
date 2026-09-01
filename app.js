@@ -262,6 +262,8 @@ function armDim() {
 
 function showDim() {
   if (!state.tracking || !state.dimEnabled) return;
+  state.dimmed = true;
+  updateStats();
   const el = $("#dim-overlay");
   el.hidden = false;
   setTimeout(() => { if (state.dimmed) el.classList.add("visible"); }, 20);
@@ -276,8 +278,14 @@ function hideDim() {
   setTimeout(() => { if (!state.dimmed) el.hidden = true; }, 600);
 }
 
-// any touch anywhere wakes the screen back up and restarts the idle countdown
-document.addEventListener("pointerdown", () => { hideDim(); armDim(); }, true);
+/* While dimmed the overlay swallows every touch, so a phone jostled in a hand
+   can't undim itself or reach Pause/Finish underneath - only the small Wake
+   button gets you out. While the screen is up, any touch restarts the
+   countdown. */
+document.addEventListener("pointerdown", () => {
+  if (state.dimmed) return;
+  armDim();
+}, true);
 
 /* ---------- active run ---------- */
 
@@ -383,7 +391,9 @@ function updateStats() {
   $("#stat-dist").textContent = d;
   $("#stat-pace").textContent = fmtPace(elapsedMs(), state.distance);
   if (state.dimmed) {
-    $("#dim-time").textContent = t;
+    const clock = $("#dim-time");
+    clock.textContent = t;
+    clock.classList.toggle("long", t.length > 5);   // hours need a smaller face
     $("#dim-dist").textContent = `${d} mi`;
   }
 }
@@ -985,6 +995,7 @@ $("#gpx-input").addEventListener("change", (e) => {
 });
 $("#btn-pause").addEventListener("click", togglePause);
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
+$("#btn-wake").addEventListener("click", (e) => { e.stopPropagation(); hideDim(); armDim(); });
 $("#btn-stop").addEventListener("click", stopRun);
 $("#btn-back").addEventListener("click", () => { renderHistory(); show("home"); });
 $("#btn-share").addEventListener("click", shareRun);
