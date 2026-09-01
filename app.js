@@ -48,7 +48,7 @@ function fmtTime(ms) {
 
 function fmtPace(ms, meters) {
   const miles = meters / MI;
-  if (miles < 0.05) return "--:--";
+  if (ms <= 0 || miles < 0.05) return "--:--";
   const paceSec = ms / 1000 / miles;
   if (paceSec > 3600) return "--:--";
   const m = Math.floor(paceSec / 60), s = Math.round(paceSec % 60);
@@ -269,7 +269,8 @@ function showDetail(run) {
   state.currentRun = run;
   show("detail");
 
-  $("#detail-date").textContent = fmtDate(run.date) + (run.demo ? " · demo" : "");
+  $("#detail-date").textContent =
+    fmtDate(run.date) + (run.demo ? " · demo" : run.imported ? " · imported" : "");
   $("#d-dist").textContent = (run.distanceM / MI).toFixed(2);
   $("#d-time").textContent = fmtTime(run.durationMs);
   $("#d-pace").textContent = fmtPace(run.durationMs, run.distanceM);
@@ -417,6 +418,60 @@ ${segs}
   URL.revokeObjectURL(a.href);
 }
 
+/* ---------- GPX import (runs recorded on a watch or another app) ---------- */
+
+function importGpxText(text) {
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("not a valid GPX file");
+
+  const segments = [];
+  for (const segEl of doc.querySelectorAll("trkseg")) {
+    const pts = [];
+    for (const ptEl of segEl.querySelectorAll("trkpt")) {
+      const lat = parseFloat(ptEl.getAttribute("lat"));
+      const lng = parseFloat(ptEl.getAttribute("lon"));
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+      const timeEl = ptEl.querySelector("time");
+      const t = timeEl ? Date.parse(timeEl.textContent) : NaN;
+      pts.push({ lat, lng, t });
+    }
+    if (pts.length > 1) segments.push(pts);
+  }
+  if (!segments.length) throw new Error("no track points found");
+
+  const hasTimes = segments.every((s) => s.every((p) => Number.isFinite(p.t)));
+  let distance = 0, duration = 0;
+  for (const seg of segments) {
+    for (let i = 1; i < seg.length; i++) distance += haversine(seg[i - 1], seg[i]);
+    // per-segment sums exclude paused gaps between segments
+    if (hasTimes) duration += seg[seg.length - 1].t - seg[0].t;
+  }
+  if (!hasTimes) {
+    let t = Date.now();
+    for (const seg of segments) for (const p of seg) { p.t = t; t += 1000; }
+  }
+
+  // cap stored points so long watch recordings don't blow past localStorage limits
+  const total = segments.reduce((n, s) => n + s.length, 0);
+  const step = Math.ceil(total / 1500);
+  const slim = step > 1
+    ? segments.map((s) => s.filter((_, i) => i % step === 0 || i === s.length - 1))
+    : segments;
+
+  const run = {
+    id: Date.now(),
+    date: hasTimes ? segments[0][0].t : Date.now(),
+    imported: true,
+    distanceM: Math.round(distance),
+    durationMs: Math.max(0, duration),
+    segments: slim,
+  };
+  const runs = loadRuns();
+  runs.unshift(run);
+  saveRuns(runs);
+  showDetail(run);
+}
+
 /* ---------- demo mode ---------- */
 
 function demoRoute() {
@@ -456,6 +511,18 @@ function startDemoPlayback() {
 
 $("#btn-start").addEventListener("click", () => startRun(false));
 $("#btn-demo").addEventListener("click", () => startRun(true));
+$("#btn-import").addEventListener("click", () => $("#gpx-input").click());
+$("#gpx-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { importGpxText(reader.result); renderHistory(); }
+    catch (err) { alert(`Couldn't import: ${err.message}`); }
+  };
+  reader.readAsText(file);
+});
 $("#btn-pause").addEventListener("click", togglePause);
 $("#btn-stop").addEventListener("click", stopRun);
 $("#btn-back").addEventListener("click", () => { renderHistory(); show("home"); });
