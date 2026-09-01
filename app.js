@@ -83,6 +83,22 @@ function saveRuns(runs) {
 
 /* ---------- home / history ---------- */
 
+/* Runs saved before smoothing existed keep their raw GPS wobble, so clean them
+   once. Imported runs are left alone — the recording device already filtered
+   them, and re-simplifying would only lose detail. */
+function migrateRuns() {
+  const runs = loadRuns();
+  let changed = false;
+  for (const run of runs) {
+    if (run.cleaned || run.imported) continue;
+    run.segments = cleanSegments(run.segments);
+    run.distanceM = Math.round(pathDistance(run.segments));
+    run.cleaned = true;
+    changed = true;
+  }
+  if (changed) saveRuns(runs);
+}
+
 function renderHistory() {
   const runs = loadRuns();
   const list = $("#history-list");
@@ -93,13 +109,81 @@ function renderHistory() {
     el.className = "history-item";
     el.innerHTML = `
       <div>
-        <div class="hi-main">${(run.distanceM / MI).toFixed(2)} mi</div>
+        <div class="hi-main">${(runDistance(run) / MI).toFixed(2)} mi</div>
         <div class="hi-sub">${fmtDate(run.date)} &middot; ${fmtTime(run.durationMs)}</div>
       </div>
-      <div class="hi-pace">${fmtPace(run.durationMs, run.distanceM)} /mi</div>`;
+      <div class="hi-pace">${fmtPace(run.durationMs, runDistance(run))} /mi</div>`;
     el.addEventListener("click", () => showDetail(run));
     list.appendChild(el);
   }
+}
+
+/* ---------- path smoothing ----------
+   GPS wanders a few metres either side of where you actually are, which makes
+   a straight street look like a wobbly line and inflates the distance. A short
+   centred moving average pulls the trace back toward the real line. */
+
+function smoothSegment(seg, window = 5) {
+  if (seg.length < 3) return seg;
+  const half = Math.floor(window / 2);
+  return seg.map((p, i) => {
+    const lo = Math.max(0, i - half), hi = Math.min(seg.length - 1, i + half);
+    let lat = 0, lng = 0;
+    for (let j = lo; j <= hi; j++) { lat += seg[j].lat; lng += seg[j].lng; }
+    const n = hi - lo + 1;
+    return { lat: lat / n, lng: lng / n, t: p.t };
+  });
+}
+
+function pathDistance(segments) {
+  let d = 0;
+  for (const seg of segments) {
+    for (let i = 1; i < seg.length; i++) d += haversine(seg[i - 1], seg[i]);
+  }
+  return d;
+}
+
+/* Ramer-Douglas-Peucker: drop points that sit within `eps` metres of the line
+   between their neighbours. Residual wobble along a straight street collapses
+   into an actual straight line, while real corners exceed the tolerance and
+   survive. Run after smoothing, and measure distance on the result. */
+
+function rdp(points, eps) {
+  if (points.length < 3) return points;
+  const mx = 111320 * Math.cos((points[0].lat * Math.PI) / 180), my = 110540;
+  const x = points.map((p) => p.lng * mx), y = points.map((p) => p.lat * my);
+  const keep = new Array(points.length).fill(false);
+  keep[0] = keep[points.length - 1] = true;
+
+  const stack = [[0, points.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop();
+    if (b <= a + 1) continue;
+    const dx = x[b] - x[a], dy = y[b] - y[a], len = Math.hypot(dx, dy);
+    let best = -1, bestD = 0;
+    for (let i = a + 1; i < b; i++) {
+      const d = len < 1e-9
+        ? Math.hypot(x[i] - x[a], y[i] - y[a])
+        : Math.abs(dx * (y[a] - y[i]) - (x[a] - x[i]) * dy) / len;
+      if (d > bestD) { bestD = d; best = i; }
+    }
+    if (bestD > eps) { keep[best] = true; stack.push([a, best], [best, b]); }
+  }
+  return points.filter((_, i) => keep[i]);
+}
+
+const RDP_EPS = 5;   // metres
+
+function cleanSegments(segments) {
+  return segments.map((s) => rdp(smoothSegment(s), RDP_EPS));
+}
+
+// what the detail screen, share card and history should draw/measure
+function runPath(run) { return run.segments; }
+function runDistance(run) { return run.distanceM; }
+
+function persistRun(run) {
+  saveRuns(loadRuns().map((r) => (r.id === run.id ? run : r)));
 }
 
 /* ---------- wake lock (keeps iPhone screen on mid-run) ---------- */
@@ -183,11 +267,13 @@ function onPoint(lat, lng, acc, t) {
     if (dt <= 0) return;
     if (d / dt > 12.5) return;        // >12.5 m/s: GPS jump, discard
     if (d < 2) { updateMarker(p); return; }  // jitter: don't accumulate
-    state.distance += d;
     seg.push(p);
   }
 
-  state.runLine.setLatLngs(state.segments.map((s) => s.map((q) => [q.lat, q.lng])));
+  // measure and draw the cleaned line so live stats match the saved run
+  const clean = cleanSegments(state.segments);
+  state.distance = pathDistance(clean);
+  state.runLine.setLatLngs(clean.map((s) => s.map((q) => [q.lat, q.lng])));
   updateMarker(p);
   state.runMap.panTo([lat, lng], { animate: true });
 }
@@ -246,7 +332,8 @@ function stopRun() {
     demo: state.demo,
     distanceM: Math.round(state.distance),
     durationMs,
-    segments: state.segments.filter((s) => s.length > 1),
+    segments: cleanSegments(state.segments.filter((s) => s.length > 1)),
+    cleaned: true,
   };
   state.demo = false;
 
@@ -269,21 +356,23 @@ function showDetail(run) {
   state.currentRun = run;
   show("detail");
 
+  const tag = run.demo ? " · demo" : run.imported ? " · imported" : "";
   $("#detail-date").textContent =
-    fmtDate(run.date) + (run.demo ? " · demo" : run.imported ? " · imported" : "");
-  $("#d-dist").textContent = (run.distanceM / MI).toFixed(2);
+    fmtDate(run.date) + tag;
+  $("#d-dist").textContent = (runDistance(run) / MI).toFixed(2);
   $("#d-time").textContent = fmtTime(run.durationMs);
-  $("#d-pace").textContent = fmtPace(run.durationMs, run.distanceM);
+  $("#d-pace").textContent = fmtPace(run.durationMs, runDistance(run));
 
   if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
   state.detailMap = L.map("detail-map", { zoomControl: false });
   L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(state.detailMap);
 
-  const latlngs = run.segments.map((s) => s.map((q) => [q.lat, q.lng]));
+  const path = runPath(run);
+  const latlngs = path.map((s) => s.map((q) => [q.lat, q.lng]));
   const line = L.polyline(latlngs, { color: "#059669", weight: 5, opacity: 0.95 }).addTo(state.detailMap);
 
-  const first = run.segments[0][0];
-  const lastSeg = run.segments[run.segments.length - 1];
+  const first = path[0][0];
+  const lastSeg = path[path.length - 1];
   const lastPt = lastSeg[lastSeg.length - 1];
   L.circleMarker([first.lat, first.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#059669", fillOpacity: 1 }).addTo(state.detailMap);
   L.circleMarker([lastPt.lat, lastPt.lng], { radius: 7, color: "#fff", weight: 2, fillColor: "#f85149", fillOpacity: 1 }).addTo(state.detailMap);
@@ -312,7 +401,7 @@ function drawShareCard(run) {
   ctx.fillRect(0, 0, W, H);
 
   // project route (equirectangular, good enough at run scale)
-  const pts = run.segments.flat();
+  const pts = runPath(run).flat();
   const midLat = pts.reduce((a, p) => a + p.lat, 0) / pts.length;
   const kx = Math.cos((midLat * Math.PI) / 180);
   const xs = pts.map((p) => p.lng * kx), ys = pts.map((p) => p.lat);
@@ -328,7 +417,7 @@ function drawShareCard(run) {
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const seg of run.segments) {
+  for (const seg of runPath(run)) {
     ctx.beginPath();
     seg.forEach((p, i) => (i ? ctx.lineTo(px(p), py(p)) : ctx.moveTo(px(p), py(p))));
     ctx.strokeStyle = "rgba(46, 229, 157, 0.25)";
@@ -339,8 +428,9 @@ function drawShareCard(run) {
     ctx.stroke();
   }
 
-  const first = run.segments[0][0];
-  const lseg = run.segments[run.segments.length - 1];
+  const sp = runPath(run);
+  const first = sp[0][0];
+  const lseg = sp[sp.length - 1];
   const last = lseg[lseg.length - 1];
   for (const [p, color] of [[first, "#2ee59d"], [last, "#ffffff"]]) {
     ctx.beginPath();
@@ -356,10 +446,10 @@ function drawShareCard(run) {
   const font = '-apple-system, "Segoe UI", Roboto, sans-serif';
   ctx.fillStyle = "#e6edf3";
   ctx.font = `800 130px ${font}`;
-  ctx.fillText(`${(run.distanceM / MI).toFixed(2)} mi`, pad, H - 240);
+  ctx.fillText(`${(runDistance(run) / MI).toFixed(2)} mi`, pad, H - 240);
   ctx.font = `600 52px ${font}`;
   ctx.fillStyle = "#8b949e";
-  ctx.fillText(`${fmtTime(run.durationMs)}   ·   ${fmtPace(run.durationMs, run.distanceM)} /mi`, pad, H - 150);
+  ctx.fillText(`${fmtTime(run.durationMs)}   ·   ${fmtPace(run.durationMs, runDistance(run))} /mi`, pad, H - 150);
   ctx.font = `600 40px ${font}`;
   ctx.fillText(new Date(run.date).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" }), pad, H - 85);
   ctx.textAlign = "right";
@@ -376,7 +466,7 @@ async function shareRun() {
   const canvas = drawShareCard(run);
   canvas.toBlob(async (blob) => {
     const file = new File([blob], "runpath.png", { type: "image/png" });
-    const text = `${(run.distanceM / MI).toFixed(2)} mi in ${fmtTime(run.durationMs)} (${fmtPace(run.durationMs, run.distanceM)}/mi)`;
+    const text = `${(runDistance(run) / MI).toFixed(2)} mi in ${fmtTime(run.durationMs)} (${fmtPace(run.durationMs, runDistance(run))}/mi)`;
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: "My run", text });
@@ -554,6 +644,7 @@ $("#btn-share").addEventListener("click", shareRun);
 $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
+migrateRuns();
 renderHistory();
 
 if ("serviceWorker" in navigator &&
