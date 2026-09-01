@@ -378,21 +378,20 @@ async function shareRun() {
     const file = new File([blob], "runpath.png", { type: "image/png" });
     const text = `${(run.distanceM / MI).toFixed(2)} mi in ${fmtTime(run.durationMs)} (${fmtPace(run.durationMs, run.distanceM)}/mi)`;
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      try { await navigator.share({ files: [file], title: "My run", text }); return; } catch {}
+      try {
+        await navigator.share({ files: [file], title: "My run", text });
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return;   // user closed the sheet
+      }
     }
-    // fallback: download the image
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "runpath.png";
-    a.click();
-    URL.revokeObjectURL(a.href);
+    saveBlob(blob, "runpath.png");   // fallback: download the image
   }, "image/png");
 }
 
 /* ---------- GPX export (importable into Strava) ---------- */
 
-function exportGpx() {
-  const run = state.currentRun;
+function buildGpx(run) {
   const segs = run.segments.map((seg) =>
     "    <trkseg>\n" +
     seg.map((p) =>
@@ -401,7 +400,7 @@ function exportGpx() {
     "\n    </trkseg>"
   ).join("\n");
 
-  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+  return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="RunPath" xmlns="http://www.topografix.com/GPX/1/1">
   <trk>
     <name>Run ${new Date(run.date).toISOString().slice(0, 10)}</name>
@@ -409,13 +408,38 @@ function exportGpx() {
 ${segs}
   </trk>
 </gpx>`;
+}
 
-  const blob = new Blob([gpx], { type: "application/gpx+xml" });
+function saveBlob(blob, filename) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `runpath-${new Date(run.date).toISOString().slice(0, 10)}.gpx`;
+  a.download = filename;
   a.click();
-  URL.revokeObjectURL(a.href);
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+async function exportGpx() {
+  const run = state.currentRun;
+  const gpx = buildGpx(run);
+  const name = `runpath-${new Date(run.date).toISOString().slice(0, 10)}.gpx`;
+
+  // iOS ignores <a download> inside a home-screen app, so go through the share
+  // sheet — that is what offers "Save to Files" and lets you pick the folder.
+  // Some iOS versions reject the gpx MIME type, so retry as plain text (the
+  // .gpx filename still decides how the file is saved).
+  for (const type of ["application/gpx+xml", "text/plain"]) {
+    const file = new File([gpx], name, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: name });
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return;   // user closed the sheet
+      }
+    }
+  }
+
+  saveBlob(new Blob([gpx], { type: "application/gpx+xml" }), name);
 }
 
 /* ---------- GPX import (runs recorded on a watch or another app) ---------- */
