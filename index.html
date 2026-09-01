@@ -66,6 +66,16 @@
         <button id="btn-pause" class="btn-round btn-pause">Pause</button>
         <button id="btn-stop" class="btn-round btn-stop">Finish</button>
       </div>
+      <div class="run-extra">
+        <button id="btn-dim" class="link-btn">Auto-dim: on</button>
+        <span id="wake-note" class="wake-note"></span>
+      </div>
+    </div>
+
+    <div id="dim-overlay" class="dim-overlay" hidden>
+      <div class="dim-time" id="dim-time">0:00</div>
+      <div class="dim-dist" id="dim-dist">0.00 mi</div>
+      <div class="dim-hint">tap to wake</div>
     </div>
   </section>
 
@@ -94,6 +104,7 @@
       </div>
       <div class="detail-actions">
         <button id="btn-share" class="btn-primary">Share Route Card</button>
+        <button id="btn-snap" class="btn-ghost">Snap to street</button>
         <div class="detail-actions-row">
           <button id="btn-gpx" class="btn-ghost small">Export GPX</button>
           <button id="btn-delete" class="btn-ghost small danger">Delete</button>

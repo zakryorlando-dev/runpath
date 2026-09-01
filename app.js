@@ -24,6 +24,10 @@ const state = {
   detailMap: null,
   currentRun: null,   // run object shown on detail screen
   wakeLock: null,
+  wakeTimer: null,
+  dimTimer: null,
+  dimmed: false,
+  dimEnabled: true,
 };
 
 const now = () => (state.demo ? state.simNow : Date.now());
@@ -179,22 +183,101 @@ function cleanSegments(segments) {
 }
 
 // what the detail screen, share card and history should draw/measure
-function runPath(run) { return run.segments; }
-function runDistance(run) { return run.distanceM; }
+function runPath(run) { return run.snapped || run.segments; }
+function runDistance(run) {
+  return run.snapped ? run.snappedDistanceM : run.distanceM;
+}
 
 function persistRun(run) {
   saveRuns(loadRuns().map((r) => (r.id === run.id ? run : r)));
 }
 
-/* ---------- wake lock (keeps iPhone screen on mid-run) ---------- */
+/* ---------- wake lock (keeps the iPhone screen on mid-run) ----------
+   iOS hands the lock back on its own — when the app is backgrounded, after a
+   call, sometimes for no visible reason — and does it silently. So re-acquire
+   on release, on every return to the foreground, and on a slow heartbeat, and
+   say so on screen when the browser won't hold one at all. */
 
 async function keepAwake() {
-  try { state.wakeLock = await navigator.wakeLock.request("screen"); } catch {}
+  if (!("wakeLock" in navigator)) {
+    setWakeNote("Screen lock isn't supported here — set Auto-Lock to Never");
+    return;
+  }
+  if (state.wakeLock) return;
+  try {
+    const lock = await navigator.wakeLock.request("screen");
+    state.wakeLock = lock;
+    setWakeNote("");
+    lock.addEventListener("release", () => {
+      if (state.wakeLock === lock) state.wakeLock = null;
+      if (state.tracking && document.visibilityState === "visible") keepAwake();
+    });
+  } catch (err) {
+    state.wakeLock = null;
+    setWakeNote("Screen may lock — set Auto-Lock to Never");
+  }
+}
+
+function releaseAwake() {
+  if (state.wakeLock) { state.wakeLock.release().catch(() => {}); state.wakeLock = null; }
+  if (state.wakeTimer) { clearInterval(state.wakeTimer); state.wakeTimer = null; }
+  setWakeNote("");
+}
+
+function setWakeNote(text) {
+  const el = $("#wake-note");
+  if (el) el.textContent = text;
 }
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && state.tracking) keepAwake();
 });
+window.addEventListener("focus", () => { if (state.tracking) keepAwake(); });
+
+/* ---------- auto-dim ----------
+   Holding the screen on for a whole run costs battery, so black it out after
+   30 s of not being touched. Any tap brings it back. */
+
+const DIM_AFTER_MS = 30000;
+
+function loadDimPref() {
+  try { return localStorage.getItem("runpath.dim") !== "off"; } catch { return true; }
+}
+
+function setDimPref(on) {
+  state.dimEnabled = on;
+  try { localStorage.setItem("runpath.dim", on ? "on" : "off"); } catch {}
+  $("#btn-dim").textContent = `Auto-dim: ${on ? "on" : "off"}`;
+  if (!on) hideDim();
+  armDim();
+}
+
+function armDim() {
+  clearTimeout(state.dimTimer);
+  state.dimTimer = null;
+  if (state.tracking && state.dimEnabled) {
+    state.dimTimer = setTimeout(showDim, DIM_AFTER_MS);
+  }
+}
+
+function showDim() {
+  if (!state.tracking || !state.dimEnabled) return;
+  const el = $("#dim-overlay");
+  el.hidden = false;
+  setTimeout(() => { if (state.dimmed) el.classList.add("visible"); }, 20);
+  state.dimmed = true;
+}
+
+function hideDim() {
+  const el = $("#dim-overlay");
+  if (!el || el.hidden) return;
+  el.classList.remove("visible");
+  state.dimmed = false;
+  setTimeout(() => { if (!state.dimmed) el.hidden = true; }, 600);
+}
+
+// any touch anywhere wakes the screen back up and restarts the idle countdown
+document.addEventListener("pointerdown", () => { hideDim(); armDim(); }, true);
 
 /* ---------- active run ---------- */
 
@@ -228,6 +311,8 @@ function startRun(demo) {
   $("#btn-pause").classList.remove("resuming");
 
   keepAwake();
+  state.wakeTimer = setInterval(() => { if (state.tracking) keepAwake(); }, 15000);
+  armDim();
   state.timerId = setInterval(updateStats, 250);
 
   if (demo) startDemoPlayback();
@@ -293,9 +378,14 @@ function elapsedMs() {
 }
 
 function updateStats() {
-  $("#stat-time").textContent = fmtTime(elapsedMs());
-  $("#stat-dist").textContent = (state.distance / MI).toFixed(2);
+  const t = fmtTime(elapsedMs()), d = (state.distance / MI).toFixed(2);
+  $("#stat-time").textContent = t;
+  $("#stat-dist").textContent = d;
   $("#stat-pace").textContent = fmtPace(elapsedMs(), state.distance);
+  if (state.dimmed) {
+    $("#dim-time").textContent = t;
+    $("#dim-dist").textContent = `${d} mi`;
+  }
 }
 
 function togglePause() {
@@ -324,7 +414,9 @@ function stopRun() {
   clearInterval(state.timerId);
   if (state.watchId != null) { navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
   if (state.demoId != null) { clearInterval(state.demoId); state.demoId = null; }
-  if (state.wakeLock) { state.wakeLock.release().catch(() => {}); state.wakeLock = null; }
+  clearTimeout(state.dimTimer);
+  hideDim();
+  releaseAwake();
 
   const run = {
     id: Date.now(),
@@ -358,7 +450,8 @@ function showDetail(run) {
 
   const tag = run.demo ? " · demo" : run.imported ? " · imported" : "";
   $("#detail-date").textContent =
-    fmtDate(run.date) + tag;
+    fmtDate(run.date) + tag + (run.snapped ? " · on street" : "");
+  $("#btn-snap").textContent = run.snapped ? "Show raw GPS" : "Snap to street";
   $("#d-dist").textContent = (runDistance(run) / MI).toFixed(2);
   $("#d-time").textContent = fmtTime(run.durationMs);
   $("#d-pace").textContent = fmtPace(run.durationMs, runDistance(run));
@@ -536,6 +629,245 @@ async function exportGpx() {
   saveBlob(new Blob([gpx], { type: "application/gpx+xml" }), name);
 }
 
+/* ---------- snap to streets ----------
+   A clean GPS trace still sits several metres to one side, and in a city that
+   puts the line through buildings. This pulls each fix onto real street or
+   sidewalk geometry from OpenStreetMap (fetched via Overpass), choosing the
+   most plausible chain with a Viterbi pass. Transitions are scored on distance
+   *through the street network*, not as the crow flies, so the route can't hop
+   onto a parallel alley it was never connected to. Opt-in: nothing is sent
+   anywhere until the button is tapped. */
+
+const OVERPASS = "https://overpass-api.de/api/interpreter";
+const MATCH = {
+  radius: 40,        // m - how far to look for candidate streets
+  sigma: 8,          // m - assumed sideways GPS error
+  scale: 10,         // m - tolerance on step length between fixes
+  switchCost: 6,     // cost of moving onto a different way
+  unreachable: 30,   // cost when no route joins two candidates
+  maxCandidates: 8,
+};
+
+function localFrame(lat0) {
+  return { mx: 111320 * Math.cos((lat0 * Math.PI) / 180), my: 110540 };
+}
+
+/* Street segments plus the node graph that joins them, so we can ask how far
+   it really is from one point on the network to another. */
+function buildStreetGraph(elements, frame) {
+  const ids = new Map();
+  const xs = [], ys = [], adj = [], segs = [];
+
+  const nodeFor = (lat, lon) => {
+    const key = lat.toFixed(6) + "," + lon.toFixed(6);
+    let id = ids.get(key);
+    if (id === undefined) {
+      id = xs.length;
+      ids.set(key, id);
+      xs.push(lon * frame.mx);
+      ys.push(lat * frame.my);
+      adj.push([]);
+    }
+    return id;
+  };
+
+  for (const way of elements) {
+    const g = way.geometry;
+    if (!g || g.length < 2) continue;
+    for (let i = 0; i < g.length - 1; i++) {
+      const a = nodeFor(g[i].lat, g[i].lon), b = nodeFor(g[i + 1].lat, g[i + 1].lon);
+      if (a === b) continue;
+      const w = Math.hypot(xs[a] - xs[b], ys[a] - ys[b]);
+      adj[a].push({ to: b, w });
+      adj[b].push({ to: a, w });
+      segs.push({ wayId: way.id, n0: a, n1: b, ax: xs[a], ay: ys[a], bx: xs[b], by: ys[b], len: w });
+    }
+  }
+  if (!segs.length) throw new Error("no streets found around this route");
+  return { segs, adj };
+}
+
+async function fetchStreetGraph(bounds, frame) {
+  const q = `[out:json][timeout:25];way["highway"]` +
+    `["highway"!~"^(motorway|motorway_link|trunk|trunk_link|construction|proposed|raceway)$"]` +
+    `(${bounds.s},${bounds.w},${bounds.n},${bounds.e});out geom;`;
+  const res = await fetch(OVERPASS, { method: "POST", body: q });
+  if (!res.ok) throw new Error(`map data unavailable (${res.status})`);
+  const data = await res.json();
+  return buildStreetGraph(data.elements, frame);
+}
+
+function projectToSegment(px, py, s) {
+  const dx = s.bx - s.ax, dy = s.by - s.ay;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 ? ((px - s.ax) * dx + (py - s.ay) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const x = s.ax + t * dx, y = s.ay + t * dy;
+  return { x, y, t, dist: Math.hypot(px - x, py - y) };
+}
+
+// nearest point on each nearby way, with its distance to that segment's ends
+function candidatesFor(px, py, graph) {
+  const byWay = new Map();
+  for (const s of graph.segs) {
+    const c = projectToSegment(px, py, s);
+    if (c.dist > MATCH.radius) continue;
+    const prev = byWay.get(s.wayId);
+    if (prev && prev.dist <= c.dist) continue;
+    byWay.set(s.wayId, {
+      x: c.x, y: c.y, t: c.t, dist: c.dist, seg: s, wayId: s.wayId,
+      d0: c.t * s.len, d1: (1 - c.t) * s.len,
+    });
+  }
+  return [...byWay.values()].sort((a, b) => a.dist - b.dist).slice(0, MATCH.maxCandidates);
+}
+
+// Dijkstra outward from one candidate, abandoned past `cap` metres
+function reachFrom(graph, cand, cap) {
+  const dist = new Map();
+  const heap = [];
+  const push = (n, d) => {
+    heap.push({ n, d });
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heap[p].d <= heap[i].d) break;
+      [heap[p], heap[i]] = [heap[i], heap[p]];
+      i = p;
+    }
+  };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < heap.length && heap[l].d < heap[m].d) m = l;
+        if (r < heap.length && heap[r].d < heap[m].d) m = r;
+        if (m === i) break;
+        [heap[m], heap[i]] = [heap[i], heap[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+
+  if (cand.d0 <= cap) push(cand.seg.n0, cand.d0);
+  if (cand.d1 <= cap) push(cand.seg.n1, cand.d1);
+  while (heap.length) {
+    const { n, d } = pop();
+    const seen = dist.get(n);
+    if (seen !== undefined && seen <= d) continue;
+    dist.set(n, d);
+    for (const e of graph.adj[n]) {
+      const nd = d + e.w;
+      const known = dist.get(e.to);
+      if (nd <= cap && (known === undefined || known > nd)) push(e.to, nd);
+    }
+  }
+  return dist;
+}
+
+function networkStep(reach, from, to) {
+  if (from.seg === to.seg) return Math.abs(from.t - to.t) * from.seg.len;
+  const a = reach.get(to.seg.n0), b = reach.get(to.seg.n1);
+  let best = Infinity;
+  if (a !== undefined) best = Math.min(best, a + to.d0);
+  if (b !== undefined) best = Math.min(best, b + to.d1);
+  return best;
+}
+
+/* Viterbi: cheapest chain of candidates, trading how far each sits from its
+   GPS fix against how well the network distance between consecutive
+   candidates matches the distance actually walked. */
+function matchSegment(seg, graph, frame) {
+  const pts = seg.map((p) => ({ x: p.lng * frame.mx, y: p.lat * frame.my }));
+  const cands = pts.map((p) => candidatesFor(p.x, p.y, graph));
+  if (cands.some((c) => !c.length)) return null;
+
+  let prevCost = cands[0].map((c) => (c.dist / MATCH.sigma) ** 2);
+  const back = [];
+
+  for (let i = 1; i < cands.length; i++) {
+    const stepGps = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    const cap = stepGps * 3 + 80;
+    const reach = cands[i - 1].map((pc) => reachFrom(graph, pc, cap));
+    const cost = [], from = [];
+
+    cands[i].forEach((c, j) => {
+      let best = Infinity, bestK = 0;
+      cands[i - 1].forEach((pc, k) => {
+        const walked = networkStep(reach[k], pc, c);
+        let t = prevCost[k];
+        t += Number.isFinite(walked)
+          ? Math.abs(walked - stepGps) / MATCH.scale
+          : MATCH.unreachable;
+        if (c.wayId !== pc.wayId) t += MATCH.switchCost;
+        if (t < best) { best = t; bestK = k; }
+      });
+      cost[j] = best + (c.dist / MATCH.sigma) ** 2;
+      from[j] = bestK;
+    });
+
+    prevCost = cost;
+    back.push(from);
+  }
+
+  let idx = prevCost.indexOf(Math.min(...prevCost));
+  const chain = [cands[cands.length - 1][idx]];
+  for (let i = back.length - 1; i >= 0; i--) {
+    idx = back[i][idx];
+    chain.unshift(cands[i][idx]);
+  }
+  return chain.map((c) => ({ lat: c.y / frame.my, lng: c.x / frame.mx }));
+}
+
+async function snapToStreets() {
+  const run = state.currentRun;
+  const btn = $("#btn-snap");
+
+  if (run.snapped) {                        // toggle back to the recorded trace
+    delete run.snapped;
+    delete run.snappedDistanceM;
+    persistRun(run);
+    showDetail(run);
+    return;
+  }
+
+  const all = run.segments.flat();
+  if (all.length < 2) return;
+  const lats = all.map((p) => p.lat), lngs = all.map((p) => p.lng);
+  const pad = 0.0018;                       // ~200 m of margin around the run
+  const bounds = {
+    s: Math.min(...lats) - pad, n: Math.max(...lats) + pad,
+    w: Math.min(...lngs) - pad, e: Math.max(...lngs) + pad,
+  };
+  const frame = localFrame((bounds.s + bounds.n) / 2);
+
+  btn.disabled = true;
+  btn.textContent = "Fetching streets...";
+  try {
+    const graph = await fetchStreetGraph(bounds, frame);
+    btn.textContent = "Matching...";
+    await new Promise((r) => setTimeout(r, 0));   // let the label paint
+    const snapped = run.segments.map((seg) => matchSegment(seg, graph, frame));
+    if (snapped.some((s) => !s)) {
+      throw new Error("part of the route is too far from any mapped street");
+    }
+    run.snapped = snapped;
+    run.snappedDistanceM = Math.round(pathDistance(snapped));
+    persistRun(run);
+    showDetail(run);
+  } catch (err) {
+    alert(`Couldn't snap to street: ${err.message}`);
+    btn.textContent = "Snap to street";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 /* ---------- GPX import (runs recorded on a watch or another app) ---------- */
 
 function importGpxText(text) {
@@ -642,12 +974,15 @@ $("#gpx-input").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 $("#btn-pause").addEventListener("click", togglePause);
+$("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
 $("#btn-stop").addEventListener("click", stopRun);
 $("#btn-back").addEventListener("click", () => { renderHistory(); show("home"); });
 $("#btn-share").addEventListener("click", shareRun);
+$("#btn-snap").addEventListener("click", snapToStreets);
 $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
+setDimPref(loadDimPref());
 migrateRuns();
 renderHistory();
 
