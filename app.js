@@ -242,19 +242,27 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "11:26";           // shown on the splash while this is in doubt
-const INTRO_SETTLE_MS = 700;     // after load, before a first attempt
+const BUILD = "11:33";           // shown on the splash while this is in doubt
+const INTRO_SETTLE_MS = 1100;    // hold the screen blank first, so the
+                                 // launch screen has lifted before anything moves
+const INTRO_REPLAY_BLANK_MS = 300;   // a beat of blank before a restart, so a
+                                     // restart reads as deliberate
 const INTRO_WATCH_MS = 2600;     // how long to keep watching for the reveal
 const INTRO_GAP_MS = 220;        // a pause this long means frames weren't being seen
 
 function startIntro(stage) {
   let restarts = 0;
 
-  const play = () => {
+  const play = (blankFirst = 0) => {
     stage.classList.remove("playing");
     void stage.offsetWidth;                    // replay from the top
-    stage.classList.add("playing");
-    watch();
+    const go = () => {
+      if (state.splashDone) return;
+      stage.classList.add("playing");
+      watch();
+    };
+    if (blankFirst) setTimeout(go, blankFirst);
+    else go();
   };
 
   /* Watch the frame cadence for a while after starting. A gap means the phone
@@ -268,7 +276,7 @@ function startIntro(stage) {
       last = now;
       if (gap > INTRO_GAP_MS && restarts < 2) {
         restarts++;
-        play();
+        play(INTRO_REPLAY_BLANK_MS);
         return;
       }
       if (now < until) requestAnimationFrame(tick);
