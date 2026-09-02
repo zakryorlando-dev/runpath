@@ -242,11 +242,11 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "13:58";           // shown on the splash while this is in doubt
-const INTRO_SETTLE_MS = 150;     // a breath of blank; the frame-gap watch
-                                 // below is what actually handles a late reveal
-const INTRO_REPLAY_BLANK_MS = 300;   // a beat of blank before a restart, so a
-                                     // restart reads as deliberate
+const BUILD = "14:12";           // shown on the splash while this is in doubt
+const INTRO_SETTLE_MS = 450;     // a breath of blank before the sequence starts,
+                                 // tripled to see what it does to the phone's reveal
+const INTRO_REPLAY_BLANK_MS = 900;   // a beat of blank before a restart, so a
+                                     // restart reads as deliberate. Tripled to match
 const INTRO_WATCH_MS = 45000;    // long enough to catch a late reveal: a recording
                                  // caught one landing thirty-five seconds in. Past this
                                  // point a rewind would cost more than it saves
