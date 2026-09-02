@@ -136,6 +136,7 @@
       </div>
       <div class="run-extra">
         <button id="btn-dim" class="link-btn">Auto-dim: on</button>
+        <span id="recording-type" class="recording-type"></span>
         <span id="wake-note" class="wake-note"></span>
       </div>
     </div>
@@ -170,6 +171,12 @@
           <div class="stat-label">/ Mile</div>
         </div>
       </div>
+      <div class="type-picker" id="detail-type">
+        <button class="type-pill" data-type="run">Run</button>
+        <button class="type-pill" data-type="walk">Walk</button>
+        <button class="type-pill" data-type="bike">Bike</button>
+      </div>
+
       <div class="detail-actions">
         <button id="btn-share" class="btn-primary">Share Route Card</button>
         <button id="btn-snap" class="btn-ghost">Snap to street</button>
@@ -303,6 +310,11 @@
   <!-- START, docked above the tab bar so it stays put while Home scrolls -->
   <div id="start-dock" class="start-dock">
     <p id="following" class="following" hidden></p>
+    <div class="type-picker" id="type-picker">
+      <button class="type-pill active" data-type="run">Run</button>
+      <button class="type-pill" data-type="walk">Walk</button>
+      <button class="type-pill" data-type="bike">Bike</button>
+    </div>
     <button id="btn-start" class="btn-primary">Start Run</button>
   </div>
 

@@ -41,6 +41,7 @@ const state = {
   dimmed: false,
   dimEnabled: true,
   prefs: { autoSnap: true, privacyM: 200 },
+  activityType: "run",
   plan: null,          // training plan, loaded from plan.json
 };
 
@@ -147,7 +148,7 @@ function renderHistory() {
     el.innerHTML = `
       <div>
         <div class="hi-main">${(runDistance(run) / MI).toFixed(2)} mi</div>
-        <div class="hi-sub">${fmtDate(run.date)} &middot; ${fmtTime(run.durationMs)}</div>
+        <div class="hi-sub">${fmtDate(run.date)} &middot; ${fmtTime(run.durationMs)}<span class="hi-type">${isRun(run) ? "" : TYPE_LABEL[runType(run)]}</span></div>
       </div>
       <div class="hi-pace">${fmtPace(run.durationMs, runDistance(run))} /mi</div>`;
     el.addEventListener("click", () => showDetail(run));
@@ -365,7 +366,7 @@ function weekBuckets(runs, count) {
     from.setDate(from.getDate() - i * 7);
     const to = new Date(from);
     to.setDate(to.getDate() + 7);
-    const mine = runs.filter((r) => r.date >= +from && r.date < +to);
+    const mine = runs.filter((r) => isRun(r) && r.date >= +from && r.date < +to);
     const planned = planWeekFor(from);
     weeks.push({
       from,
@@ -421,11 +422,13 @@ function drawCalendar(runs) {
   $("#cal-month").textContent =
     now.toLocaleDateString(undefined, { month: "long", year: "numeric" });
 
-  const ran = new Set(
-    runs.filter((r) => {
-      const d = new Date(r.date);
-      return d.getFullYear() === year && d.getMonth() === month;
-    }).map((r) => new Date(r.date).getDate())
+  const thisMonth = runs.filter((r) => {
+    const d = new Date(r.date);
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+  const ran = new Set(thisMonth.filter(isRun).map((r) => new Date(r.date).getDate()));
+  const moved = new Set(
+    thisMonth.filter((r) => !isRun(r)).map((r) => new Date(r.date).getDate())
   );
 
   const first = new Date(year, month, 1);
@@ -438,6 +441,7 @@ function drawCalendar(runs) {
   for (let day = 1; day <= days; day++) {
     const cls = ["cal-day"];
     if (ran.has(day)) cls.push("ran");
+    else if (moved.has(day)) cls.push("other");
     else if (isPlannedDay(new Date(year, month, day))) cls.push("planned");
     if (day === now.getDate()) cls.push("today");
     html += `<div class="${cls.join(" ")}">${day}</div>`;
@@ -820,6 +824,7 @@ function stopRun() {
     id: Date.now(),
     date: state.demo ? Date.now() : state.startTime,
     demo: state.demo,
+    type: state.activityType,
     distanceM: Math.round(state.distance),
     durationMs,
     segments: cleanSegments(state.segments.filter((s) => s.length > 1)),
@@ -898,6 +903,7 @@ function showDetail(run) {
   state.currentRun = run;
   show("detail");
 
+  renderDetailType(run);
   const tag = run.demo ? " · demo" : run.imported ? " · imported" : "";
   $("#detail-date").textContent =
     fmtDate(run.date) + tag + (run.snapped ? " · on street" : "");
@@ -931,6 +937,48 @@ function deleteCurrentRun() {
   saveRuns(loadRuns().filter((r) => r.id !== state.currentRun.id));
   refreshHome();
   show("home");
+}
+
+/* ---------- activity type ----------
+   A session is a run, a walk or a ride. Only runs count toward the training
+   plan, the weekly totals or the pace estimate - a ride would flatter the pace
+   and a walk would flatter the plan. Everything is still recorded and mapped.
+
+   The picker resets to Run each time the app opens: a walk logged as a run is
+   a worse mistake than picking Walk twice. */
+
+const ACTIVITY_TYPES = ["run", "walk", "bike"];
+const TYPE_LABEL = { run: "Run", walk: "Walk", bike: "Bike" };
+
+function runType(run) {
+  return ACTIVITY_TYPES.includes(run.type) ? run.type : "run";   // older runs
+}
+
+function isRun(run) { return runType(run) === "run"; }
+
+function setActivityType(type) {
+  state.activityType = ACTIVITY_TYPES.includes(type) ? type : "run";
+  document.querySelectorAll("#type-picker .type-pill").forEach((b) =>
+    b.classList.toggle("active", b.dataset.type === state.activityType));
+  const label = TYPE_LABEL[state.activityType];
+  $("#btn-start").textContent = state.activityType === "run" ? "Start Run" : `Start ${label}`;
+  $("#recording-type").textContent =
+    state.activityType === "run" ? "" : `Recording a ${label.toLowerCase()}`;
+}
+
+function renderDetailType(run) {
+  const current = runType(run);
+  document.querySelectorAll("#detail-type .type-pill").forEach((b) =>
+    b.classList.toggle("active", b.dataset.type === current));
+}
+
+function changeRunType(type) {
+  const run = state.currentRun;
+  if (!run || runType(run) === type) return;
+  run.type = type;
+  persistRun(run);
+  showDetail(run);
+  refreshHome();
 }
 
 /* ---------- privacy settings ----------
@@ -1452,7 +1500,7 @@ function setActiveRoute(id) {
    honest number for someone at that stage. */
 function historyPace() {
   const runs = loadRuns().filter(
-    (r) => runDistance(r) > 400 && r.durationMs > 120000
+    (r) => isRun(r) && runDistance(r) > 400 && r.durationMs > 120000
   );
   if (!runs.length) return { paceMs: DEFAULT_PACE_MS, runs: 0 };
   const paces = runs
@@ -2196,6 +2244,10 @@ $("#gpx-input").addEventListener("change", (e) => {
   reader.readAsText(file);
 });
 $("#btn-pause").addEventListener("click", togglePause);
+document.querySelectorAll("#type-picker .type-pill").forEach((b) =>
+  b.addEventListener("click", () => setActivityType(b.dataset.type)));
+document.querySelectorAll("#detail-type .type-pill").forEach((b) =>
+  b.addEventListener("click", () => changeRunType(b.dataset.type)));
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
 holdToFire($("#btn-wake"), () => { hideDim(); armDim(); });
 holdToFire($("#btn-stop"), stopRun);
@@ -2206,6 +2258,7 @@ $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
 state.prefs = loadPrefs();
+setActivityType("run");
 renderPrefs();
 document.querySelectorAll(".tab").forEach((t) =>
   t.addEventListener("click", () => showTab(t.dataset.tab)));

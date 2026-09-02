@@ -677,3 +677,39 @@ html, body {
 .start-dock[hidden] { display: none; }
 .start-dock .following { margin: 0 0 8px; }
 .start-dock .btn-primary { width: 100%; }
+
+
+/* ---------- activity type ---------- */
+
+.type-picker {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.type-pill {
+  flex: 1;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 0;
+  cursor: pointer;
+}
+.type-pill.active { border-color: var(--accent); color: var(--accent); }
+
+#detail-type { margin-bottom: 12px; }
+
+.recording-type { color: var(--muted); font-size: 12px; }
+
+/* walks and rides are recorded, but they aren't the training */
+.hi-type {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 6px;
+}
+.cal-day.other { background: #2d333b; color: var(--text); font-weight: 700; }
