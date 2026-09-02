@@ -3,6 +3,20 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+
+  <!-- Nothing loads or is sent anywhere unless it is named here. If a scripting
+       hole ever slips through again, this is what stops it phoning home. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'none';
+    script-src 'self' https://unpkg.com;
+    style-src 'self' https://unpkg.com 'unsafe-inline';
+    img-src 'self' data: blob: https://tile.openstreetmap.org https://unpkg.com;
+    connect-src 'self' https://overpass-api.de https://www.strava.com;
+    worker-src 'self';
+    manifest-src 'self';
+    base-uri 'none';
+    form-action 'none';
+    frame-ancestors 'none'">
   <title>RunPath</title>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -76,7 +90,32 @@
     <div class="history-wrap">
       <h2>History</h2>
       <div id="history-list"></div>
-      <p id="history-empty" class="muted">No runs yet — your first one starts above.</p>
+      <p id="history-empty" class="muted">No runs yet &mdash; your first one starts above.</p>
+    </div>
+
+    <div class="settings">
+      <h2>Settings</h2>
+
+      <button id="btn-autosnap" class="setting-row">
+        <span class="setting-name">Snap runs to streets</span>
+        <span class="setting-val" id="autosnap-val">On</span>
+      </button>
+      <p class="setting-hint">
+        Lines your route up with real streets when a run ends. Sends the area
+        you ran &mdash; not the run itself &mdash; to OpenStreetMap's Overpass
+        service. Turn this off and nothing leaves the phone; you can still snap
+        a run by hand from its page.
+      </p>
+
+      <button id="btn-privacy" class="setting-row">
+        <span class="setting-name">Privacy zone</span>
+        <span class="setting-val" id="privacy-val">200 m</span>
+      </button>
+      <p class="setting-hint">
+        Trims this much off both ends of a route in shared cards and exported
+        files, so they don't start at your front door. Your own map still shows
+        the whole run.
+      </p>
     </div>
   </section>
 

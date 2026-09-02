@@ -418,3 +418,39 @@ html, body {
   margin-top: 14px;
 }
 .powered { color: #fc5200; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
+
+
+/* ---------- settings ---------- */
+
+.settings { margin-top: 32px; }
+.settings h2 {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.setting-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: var(--text);
+  font-size: 15px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.setting-name { font-weight: 600; }
+.setting-val { color: var(--accent); font-weight: 700; }
+.setting-val.off { color: var(--muted); }
+.setting-hint {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 8px 2px 18px;
+}

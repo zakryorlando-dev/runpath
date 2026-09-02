@@ -30,6 +30,7 @@ const state = {
   dimTimer: null,
   dimmed: false,
   dimEnabled: true,
+  prefs: { autoSnap: true, privacyM: 200 },
   plan: null,          // training plan, loaded from plan.json
 };
 
@@ -671,7 +672,8 @@ function stopRun() {
   saveRuns(runs);
   showDetail(run);
 
-  // put it on the street without being asked; stays raw if there's no signal
+  // put it on the street unless that's been turned off; stays raw without signal
+  if (!state.prefs.autoSnap) return;
   setSnapUI("Snapping to street...", true);
   snapRun(run, { silent: true }).then((ok) => {
     // a new run may have started while this was in flight; don't steal the screen
@@ -763,6 +765,55 @@ function deleteCurrentRun() {
   show("home");
 }
 
+/* ---------- privacy settings ----------
+   Two things worth deciding for yourself: whether a finished run's area gets
+   sent to Overpass to be snapped, and how much of each end of a route is held
+   back from anything you share. */
+
+const PREFS_KEY = "runpath.prefs";
+const PRIVACY_STEPS = [0, 100, 200, 400];   // metres; 0 is off
+
+function loadPrefs() {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch {}
+  return { autoSnap: true, privacyM: 200, ...saved };
+}
+
+function savePrefs(next) {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(next)); } catch {}
+  state.prefs = next;
+  renderPrefs();
+}
+
+function renderPrefs() {
+  const p = state.prefs;
+  const snap = $("#autosnap-val");
+  snap.textContent = p.autoSnap ? "On" : "Off";
+  snap.classList.toggle("off", !p.autoSnap);
+  const priv = $("#privacy-val");
+  priv.textContent = p.privacyM ? `${p.privacyM} m` : "Off";
+  priv.classList.toggle("off", !p.privacyM);
+}
+
+/* Drop everything within `radius` of where the run began and ended. A route
+   that starts at your door shouldn't be shareable as a map of your door. */
+function applyPrivacy(segments, radius) {
+  if (!radius) return segments;
+  const pts = segments.flat();
+  if (pts.length < 2) return segments;
+  const first = pts[0], last = pts[pts.length - 1];
+  return segments
+    .map((seg) => seg.filter(
+      (q) => haversine(q, first) > radius && haversine(q, last) > radius
+    ))
+    .filter((seg) => seg.length > 1);
+}
+
+// the version of a run that's safe to hand to anyone else
+function sharePath(run) {
+  return applyPrivacy(runPath(run), state.prefs.privacyM);
+}
+
 /* ---------- share card ---------- */
 
 function drawShareCard(run) {
@@ -774,7 +825,7 @@ function drawShareCard(run) {
   ctx.fillRect(0, 0, W, H);
 
   // project route (equirectangular, good enough at run scale)
-  const pts = runPath(run).flat();
+  const pts = sharePath(run).flat();
   const midLat = pts.reduce((a, p) => a + p.lat, 0) / pts.length;
   const kx = Math.cos((midLat * Math.PI) / 180);
   const xs = pts.map((p) => p.lng * kx), ys = pts.map((p) => p.lat);
@@ -790,7 +841,7 @@ function drawShareCard(run) {
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
-  for (const seg of runPath(run)) {
+  for (const seg of sharePath(run)) {
     ctx.beginPath();
     seg.forEach((p, i) => (i ? ctx.lineTo(px(p), py(p)) : ctx.moveTo(px(p), py(p))));
     ctx.strokeStyle = "rgba(46, 229, 157, 0.25)";
@@ -801,7 +852,7 @@ function drawShareCard(run) {
     ctx.stroke();
   }
 
-  const sp = runPath(run);
+  const sp = sharePath(run);
   const first = sp[0][0];
   const lseg = sp[sp.length - 1];
   const last = lseg[lseg.length - 1];
@@ -836,6 +887,10 @@ function drawShareCard(run) {
 
 async function shareRun() {
   const run = state.currentRun;
+  if (!sharePath(run).length) {
+    alert("This whole run sits inside your privacy zone, so there's nothing to share. Lower it in Settings.");
+    return;
+  }
   const canvas = drawShareCard(run);
   canvas.toBlob(async (blob) => {
     const file = new File([blob], "runpath.png", { type: "image/png" });
@@ -855,7 +910,7 @@ async function shareRun() {
 /* ---------- GPX export (importable into Strava) ---------- */
 
 function buildGpx(run) {
-  const segs = runPath(run).map((seg) =>
+  const segs = sharePath(run).map((seg) =>
     "    <trkseg>\n" +
     seg.map((p) =>
       `      <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><time>${new Date(p.t).toISOString()}</time></trkpt>`
@@ -883,6 +938,10 @@ function saveBlob(blob, filename) {
 
 async function exportGpx() {
   const run = state.currentRun;
+  if (!sharePath(run).length) {
+    alert("This whole run sits inside your privacy zone, so the file would be empty. Lower it in Settings.");
+    return;
+  }
   const gpx = buildGpx(run);
   const d = new Date(run.date);
   const pad = (n) => String(n).padStart(2, "0");
@@ -1496,6 +1555,12 @@ function startDemoPlayback() {
 /* ---------- wire up ---------- */
 
 $("#btn-start").addEventListener("click", () => startRun(false));
+$("#btn-autosnap").addEventListener("click", () =>
+  savePrefs({ ...state.prefs, autoSnap: !state.prefs.autoSnap }));
+$("#btn-privacy").addEventListener("click", () => {
+  const i = PRIVACY_STEPS.indexOf(state.prefs.privacyM);
+  savePrefs({ ...state.prefs, privacyM: PRIVACY_STEPS[(i + 1) % PRIVACY_STEPS.length] });
+});
 $("#btn-segments").addEventListener("click", openSegments);
 $("#btn-seg-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-strava-connect").addEventListener("click", connectStrava);
@@ -1523,6 +1588,8 @@ $("#btn-snap").addEventListener("click", snapCurrentRun);
 $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
+state.prefs = loadPrefs();
+renderPrefs();
 setDimPref(loadDimPref());
 // coming back from Strava's approval page lands here with a code in the URL
 stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
