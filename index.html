@@ -34,8 +34,8 @@
 </head>
 <body>
 
-  <!-- HOME -->
-  <section id="screen-home" class="screen active">
+  <!-- HOME — start a run, and where this week stands -->
+  <section id="screen-home" class="screen tabbed active">
     <header class="home-header">
       <h1>RunPath</h1>
       <p class="tagline">Track it. Map it. Share it.</p>
@@ -43,13 +43,9 @@
 
     <div class="home-actions">
       <button id="btn-start" class="btn-primary">Start Run</button>
-      <button id="btn-route" class="btn-ghost">Plan a route</button>
-      <button id="btn-segments" class="btn-ghost">Segments near me</button>
-      <button id="btn-import" class="btn-ghost">Import GPX (watch / Strava)</button>
-      <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden>
     </div>
 
-    <section class="progress-wrap">
+    <section class="week-block">
       <h2>This week</h2>
       <div class="week-stats">
         <div class="ws">
@@ -74,53 +70,33 @@
         <div class="plan-bar"><div id="plan-fill" class="plan-fill"></div></div>
         <div class="plan-note" id="plan-note"></div>
       </div>
-
-      <div class="section-head">
-        <span>Last 12 weeks</span>
-        <span class="muted" id="chart-peak"></span>
-      </div>
-      <div id="week-chart" class="chart"></div>
-
-      <div class="section-head">
-        <span id="cal-month"></span>
-        <span class="muted" id="streak-note"></span>
-      </div>
-      <div id="calendar" class="calendar"></div>
     </section>
+  </section>
+
+  <!-- ACTIVITY — the record: chart, calendar, every run -->
+  <section id="screen-activity" class="screen tabbed">
+    <header class="tab-header"><h1>Activity</h1></header>
+
+    <div class="section-head">
+      <span>Last 12 weeks</span>
+      <span class="muted" id="chart-peak"></span>
+    </div>
+    <div id="week-chart" class="chart"></div>
+
+    <div class="section-head">
+      <span id="cal-month"></span>
+      <span class="muted" id="streak-note"></span>
+    </div>
+    <div id="calendar" class="calendar"></div>
 
     <div class="history-wrap">
       <h2>History</h2>
       <div id="history-list"></div>
-      <p id="history-empty" class="muted">No runs yet &mdash; your first one starts above.</p>
-    </div>
-
-    <div class="settings">
-      <h2>Settings</h2>
-
-      <button id="btn-autosnap" class="setting-row">
-        <span class="setting-name">Snap runs to streets</span>
-        <span class="setting-val" id="autosnap-val">On</span>
-      </button>
-      <p class="setting-hint">
-        Lines your route up with real streets when a run ends. Sends the area
-        you ran &mdash; not the run itself &mdash; to OpenStreetMap's Overpass
-        service. Turn this off and nothing leaves the phone; you can still snap
-        a run by hand from its page.
-      </p>
-
-      <button id="btn-privacy" class="setting-row">
-        <span class="setting-name">Privacy zone</span>
-        <span class="setting-val" id="privacy-val">200 m</span>
-      </button>
-      <p class="setting-hint">
-        Trims this much off both ends of a route in shared cards and exported
-        files, so they don't start at your front door. Your own map still shows
-        the whole run.
-      </p>
+      <p id="history-empty" class="muted">No runs yet &mdash; start one from Home.</p>
     </div>
   </section>
 
-  <!-- ACTIVE RUN -->
+  <!-- ACTIVE RUN — no tab bar; the run owns the screen -->
   <section id="screen-run" class="screen">
     <div id="run-map" class="map"></div>
 
@@ -192,13 +168,12 @@
     </div>
   </section>
 
-  <!-- ROUTE PLANNER -->
-  <section id="screen-route" class="screen">
+  <!-- PLAN — build a route before heading out -->
+  <section id="screen-route" class="screen tabbed">
     <div id="route-map" class="map"></div>
 
     <div class="route-panel">
-      <div class="detail-head">
-        <button id="btn-route-back" class="btn-ghost small">&larr; Back</button>
+      <div class="panel-head">
         <span class="muted" id="route-status">Tap the map to drop a start point</span>
       </div>
 
@@ -237,13 +212,12 @@
     </div>
   </section>
 
-  <!-- NEARBY SEGMENTS -->
-  <section id="screen-segments" class="screen">
+  <!-- SEGMENTS — where people actually run nearby -->
+  <section id="screen-segments" class="screen tabbed">
     <div id="seg-map" class="map"></div>
 
     <div class="seg-panel">
-      <div class="detail-head">
-        <button id="btn-seg-back" class="btn-ghost small">&larr; Back</button>
+      <div class="panel-head">
         <span class="muted" id="seg-status"></span>
       </div>
 
@@ -278,6 +252,64 @@
       </div>
     </div>
   </section>
+
+  <!-- SETTINGS -->
+  <section id="screen-settings" class="screen tabbed">
+    <header class="tab-header"><h1>Settings</h1></header>
+
+    <button id="btn-autosnap" class="setting-row">
+      <span class="setting-name">Snap runs to streets</span>
+      <span class="setting-val" id="autosnap-val">On</span>
+    </button>
+    <p class="setting-hint">
+      Lines your route up with real streets when a run ends. Sends the area you
+      ran &mdash; not the run itself &mdash; to OpenStreetMap's Overpass
+      service. Turn this off and nothing leaves the phone; you can still snap a
+      run by hand from its page.
+    </p>
+
+    <button id="btn-privacy" class="setting-row">
+      <span class="setting-name">Privacy zone</span>
+      <span class="setting-val" id="privacy-val">200 m</span>
+    </button>
+    <p class="setting-hint">
+      Trims this much off both ends of a route in shared cards and exported
+      files, so they don't start at your front door. Your own map still shows
+      the whole run.
+    </p>
+
+    <h2 class="settings-sub">Bring runs in</h2>
+    <button id="btn-import" class="btn-ghost wide">Import GPX (watch / Strava)</button>
+    <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden>
+    <p class="setting-hint">
+      Adds a run recorded somewhere else &mdash; an Apple Watch workout exported
+      from Strava, say &mdash; to your history here.
+    </p>
+  </section>
+
+  <!-- TAB BAR -->
+  <nav id="tabbar" class="tabbar">
+    <button class="tab" data-tab="activity">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
+      <span>Activity</span>
+    </button>
+    <button class="tab" data-tab="route">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20c0-3 3-4 6-5s5-2 5-4a3 3 0 0 0-6 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="6" r="3"/><circle cx="5" cy="19" r="2.5"/></svg>
+      <span>Plan</span>
+    </button>
+    <button class="tab" data-tab="home">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="tab" data-tab="segments">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 5 13h5l-1 9 8-11h-5z"/></svg>
+      <span>Segments</span>
+    </button>
+    <button class="tab" data-tab="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.2 5.2l2.1 2.1M16.7 16.7l2.1 2.1M18.8 5.2l-2.1 2.1M7.3 16.7l-2.1 2.1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
 
   <canvas id="share-canvas" width="1080" height="1350" hidden></canvas>
 

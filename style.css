@@ -23,6 +23,8 @@ button { touch-action: manipulation; }   /* no double-tap zoom on the controls *
   --danger: #f85149;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 58px;
+  --tabbar-space: calc(var(--safe-bottom) + var(--tabbar-h) + 16px);
 }
 
 html, body {
@@ -37,7 +39,12 @@ html, body {
 .screen.active { display: flex; }
 
 /* ---------- Home ---------- */
-#screen-home { padding: calc(var(--safe-top) + 28px) 20px calc(var(--safe-bottom) + 20px); overflow-y: auto; }
+#screen-home,
+#screen-activity,
+#screen-settings {
+  padding: calc(var(--safe-top) + 28px) 20px var(--tabbar-space);
+  overflow-y: auto;
+}
 
 .home-header h1 { font-size: 34px; letter-spacing: -0.5px; }
 .home-header h1::after { content: "."; color: var(--accent); }
@@ -217,9 +224,6 @@ html, body {
 
 /* ---------- progress: week totals, 12-week chart, month calendar ---------- */
 
-.progress-wrap { margin-top: 30px; }
-.progress-wrap[hidden] { display: none; }
-.progress-wrap h2,
 .section-head {
   font-size: 13px;
   color: var(--muted);
@@ -516,3 +520,72 @@ html, body {
 }
 .route-selection[hidden] { display: none; }
 .route-sel-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+
+/* ---------- tab bar ----------
+   Five destinations, Home in the middle where a thumb lands. Hidden while a
+   run is on and on a run's own page, which want the whole screen. */
+
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3000;
+  display: flex;
+  background: rgba(13, 17, 23, 0.94);
+  border-top: 1px solid var(--border);
+  padding-bottom: var(--safe-bottom);
+  backdrop-filter: blur(12px);
+}
+.tabbar[hidden] { display: none; }
+
+.tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 8px 2px 6px;
+  height: var(--tabbar-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  cursor: pointer;
+}
+.tab svg { width: 22px; height: 22px; fill: currentColor; }
+.tab.active { color: var(--accent); }
+
+.tab-header { margin-bottom: 18px; }
+.tab-header h1 { font-size: 28px; letter-spacing: -0.5px; }
+
+.week-block { margin-top: 30px; }
+.week-block h2 {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.settings-sub {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 26px 0 10px;
+}
+.btn-ghost.wide { width: 100%; }
+
+.panel-head { margin-bottom: 12px; min-height: 18px; }
+
+/* the map panels sit above the bar rather than under it */
+.route-panel, .seg-panel {
+  padding-bottom: var(--tabbar-space);
+  max-height: 62vh;
+}

@@ -33,6 +33,7 @@ const state = {
   routeBusy: false,
   route: { stops: [], legs: [], selected: null },
   plannedLine: null,
+  tab: "home",
   currentRun: null,   // run object shown on detail screen
   wakeLock: null,
   wakeTimer: null,
@@ -83,7 +84,25 @@ function fmtDate(ts) {
 
 function show(id) {
   document.querySelectorAll(".screen").forEach((el) => el.classList.remove("active"));
-  $(`#screen-${id}`).classList.add("active");
+  const screen = $(`#screen-${id}`);
+  screen.classList.add("active");
+  // a run, and a run's own page, get the whole screen
+  $("#tabbar").hidden = !screen.classList.contains("tabbed");
+}
+
+/* Tabs are the top level of the app; the run and detail screens sit on top of
+   whichever tab you came from, and Back returns you there. */
+const TABS = ["activity", "route", "home", "segments", "settings"];
+
+function showTab(name) {
+  state.tab = name;
+  show(name);
+  document.querySelectorAll(".tab").forEach((t) =>
+    t.classList.toggle("active", t.dataset.tab === name));
+
+  if (name === "home" || name === "activity") refreshHome();
+  if (name === "route") openRoutePlanner();
+  if (name === "segments") openSegments();
 }
 
 /* ---------- storage ---------- */
@@ -318,10 +337,6 @@ function refreshHome() {
 
 function renderProgress() {
   const runs = loadRuns();
-  // nothing to chart before the first run - unless a plan is waiting
-  document.querySelector(".progress-wrap").hidden = !runs.length && !state.plan;
-  if (!runs.length && !state.plan) return;
-
   const weeks = weekBuckets(runs, 12);
   const current = weeks[weeks.length - 1];
 
@@ -705,6 +720,7 @@ function stopRun() {
   const runs = loadRuns();
   runs.unshift(run);
   saveRuns(runs);
+  state.tab = "activity";
   showDetail(run);
 
   // put it on the street unless that's been turned off; stays raw without signal
@@ -1641,7 +1657,6 @@ function showSavedRoute(route) {
 }
 
 async function openRoutePlanner() {
-  show("route");
   if (!state.routeMap) {
     state.routeMap = L.map("route-map", { zoomControl: false }).setView([37.7749, -122.4194], 15);
     L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(state.routeMap);
@@ -1850,7 +1865,6 @@ function showConnect(show) {
 }
 
 async function openSegments() {
-  show("segments");
   ensureSegMap();
   if (!stravaConnected()) {
     showConnect(true);
@@ -2008,16 +2022,12 @@ $("#btn-privacy").addEventListener("click", () => {
   const i = PRIVACY_STEPS.indexOf(state.prefs.privacyM);
   savePrefs({ ...state.prefs, privacyM: PRIVACY_STEPS[(i + 1) % PRIVACY_STEPS.length] });
 });
-$("#btn-route").addEventListener("click", openRoutePlanner);
-$("#btn-route-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-route-undo").addEventListener("click", undoRoutePoint);
 $("#btn-route-delpoint").addEventListener("click", deleteSelectedStop);
 $("#btn-route-deselect").addEventListener("click", () => { state.route.selected = null; drawRoute(); });
 $("#btn-route-loop").addEventListener("click", loopRouteBack);
 $("#btn-route-clear").addEventListener("click", clearRoute);
 $("#btn-route-save").addEventListener("click", saveCurrentRoute);
-$("#btn-segments").addEventListener("click", openSegments);
-$("#btn-seg-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-strava-connect").addEventListener("click", connectStrava);
 $("#btn-strava-manual").addEventListener("click", connectStravaManual);
 $("#btn-strava-forget").addEventListener("click", forgetStrava);
@@ -2037,7 +2047,7 @@ $("#btn-pause").addEventListener("click", togglePause);
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
 holdToFire($("#btn-wake"), () => { hideDim(); armDim(); });
 holdToFire($("#btn-stop"), stopRun);
-$("#btn-back").addEventListener("click", () => { refreshHome(); show("home"); });
+$("#btn-back").addEventListener("click", () => showTab(state.tab || "home"));
 $("#btn-share").addEventListener("click", shareRun);
 $("#btn-snap").addEventListener("click", snapCurrentRun);
 $("#btn-gpx").addEventListener("click", exportGpx);
@@ -2045,11 +2055,13 @@ $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
 state.prefs = loadPrefs();
 renderPrefs();
+document.querySelectorAll(".tab").forEach((t) =>
+  t.addEventListener("click", () => showTab(t.dataset.tab)));
 setDimPref(loadDimPref());
 // coming back from Strava's approval page lands here with a code in the URL
 stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
 migrateRuns();
-refreshHome();
+showTab("home");
 loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
 
 if ("serviceWorker" in navigator &&
