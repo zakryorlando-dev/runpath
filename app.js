@@ -47,6 +47,7 @@ const state = {
   profile: null,
   obStep: 0,
   splashDone: false,
+  introRestarted: false,
   obChoices: {},
 };
 
@@ -238,8 +239,23 @@ function afterSplash() {
    before letting it begin. */
 function startIntro(stage) {
   const begin = () => {
+    stage.classList.remove("playing");
     void stage.offsetWidth;                    // replay from the top each launch
     stage.classList.add("playing");
+
+    /* iOS holds a launch screen over a starting app, and frames can be
+       produced behind it. If the clock has already run on by the time two
+       frames have gone by, nobody saw the start - so start it again, now that
+       the screen is demonstrably being drawn. Once only, so a slow phone
+       can't get stuck in a loop. */
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const line = document.querySelector(".route-line");
+      const anim = line && line.getAnimations()[0];
+      if (anim && anim.currentTime > 400 && !state.introRestarted) {
+        state.introRestarted = true;
+        begin();
+      }
+    }));
   };
   const onNextPaint = () => requestAnimationFrame(() => requestAnimationFrame(begin));
 
