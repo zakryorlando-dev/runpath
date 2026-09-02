@@ -242,14 +242,14 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "12:31";           // shown on the splash while this is in doubt
+const BUILD = "13:58";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 150;     // a breath of blank; the frame-gap watch
                                  // below is what actually handles a late reveal
 const INTRO_REPLAY_BLANK_MS = 300;   // a beat of blank before a restart, so a
                                      // restart reads as deliberate
-const INTRO_WATCH_MS = 15000;    // long enough to catch a late reveal (a recording
-                                 // showed one landing seven seconds in), short enough
-                                 // that nothing rewinds once you are well into it
+const INTRO_WATCH_MS = 45000;    // long enough to catch a late reveal: a recording
+                                 // caught one landing thirty-five seconds in. Past this
+                                 // point a rewind would cost more than it saves
 const INTRO_GAP_MS = 600;        // a pause this long means frames weren't being seen.
                                  // Generous, so a stutter on a tired phone is not
                                  // mistaken for a reveal
@@ -301,6 +301,16 @@ function startIntro(stage) {
       arm();
     }
   };
+
+  /* And whenever the app comes back to the front while the splash is still up,
+     start over: whatever played while it was away was played to nobody. */
+  document.addEventListener("visibilitychange", function onReturn() {
+    if (state.splashDone) {
+      document.removeEventListener("visibilitychange", onReturn);
+      return;
+    }
+    if (document.visibilityState === "visible") play(INTRO_REPLAY_BLANK_MS);
+  });
 
   if (document.readyState === "complete") whenVisible();
   else window.addEventListener("load", whenVisible, { once: true });
