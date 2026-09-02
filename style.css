@@ -878,15 +878,40 @@ html, body {
   animation: rise 600ms ease-out 800ms forwards;
 }
 
-.splash-hint {
-  color: var(--border);
-  font-size: 12px;
-  letter-spacing: 1px;
+/* The screen waits now, so something has to say why. Breathes rather than
+   blinks - enough to catch the eye without nagging. */
+.splash-go {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--safe-bottom) + 40px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 12px 24px;
+  color: var(--accent);
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  margin-top: 30px;
+  cursor: pointer;
   opacity: 0;
-  animation: fade-in 700ms ease-out 1500ms forwards;
+  animation: fade-in 700ms ease-out 1600ms forwards,
+             breathe 2600ms ease-in-out 2300ms infinite;
 }
+.splash-go .chev {
+  width: 26px;
+  height: 26px;
+  margin-bottom: 4px;
+  animation: chev-drift 2600ms ease-in-out 2300ms infinite;
+}
+.go-line { line-height: 1.5; }
+
+@keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.32; } }
+@keyframes chev-drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 
 @keyframes draw-route { to { stroke-dashoffset: 0; } }
 @keyframes pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
@@ -898,10 +923,11 @@ html, body {
 /* somebody who asked their phone to calm down gets the still version */
 @media (prefers-reduced-motion: reduce) {
   .route-line { animation: none; stroke-dashoffset: 0; }
-  .route-start, .route-end, .splash-title, .splash-tagline, .splash-hint {
+  .route-start, .route-end, .splash-title, .splash-tagline, .splash-go {
     animation: none;
     opacity: 1;
   }
+  .splash-go .chev { animation: none; }
 }
 
 

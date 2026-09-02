@@ -47,7 +47,6 @@ const state = {
   profile: null,
   obStep: 0,
   splashDone: false,
-  splashTimer: null,
   obChoices: {},
 };
 
@@ -163,10 +162,11 @@ function renderHistory() {
 }
 
 /* ---------- splash ----------
-   Shown at a cold start, ahead of the terms on a first visit. Short, skippable
-   by tapping, and skipped outright for anyone who has asked for less motion. */
+   Shown at a cold start, ahead of the terms on a first visit. It waits rather
+   than timing out: nobody is hurried past it, and nobody is stuck either -
+   a swipe up, a tap on the prompt, or a key all move on. */
 
-const SPLASH_MS = 3500;
+const SWIPE_MIN = 40;   // px of upward travel that counts as a swipe
 
 /* Somebody coming back gets their name rather than the sales pitch. The name
    is local so it's ready immediately; being signed in is confirmed a moment
@@ -201,19 +201,37 @@ function renderSplashGreeting() {
 function afterSplash() {
   if (state.splashDone) return;
   state.splashDone = true;
-  clearTimeout(state.splashTimer);
   if (!termsAccepted()) showTerms();
   else openAfterTerms();
 }
 
 function runSplash() {
-  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
   renderSplashGreeting();
   show("splash");
-  state.splashTimer = setTimeout(afterSplash, still ? 2000 : SPLASH_MS);
-  document.querySelector("#screen-splash").addEventListener("click", afterSplash, { once: true });
+
+  const screen = document.querySelector("#screen-splash");
+  let startY = null;
+
+  screen.addEventListener("touchstart", (e) => {
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+
+  screen.addEventListener("touchend", (e) => {
+    if (startY === null) return;
+    const travelled = startY - e.changedTouches[0].clientY;
+    startY = null;
+    if (travelled > SWIPE_MIN) afterSplash();
+  }, { passive: true });
+
+  // and for anyone not swiping: the prompt, a mouse, or a key
+  $("#splash-go").addEventListener("click", afterSplash);
+  screen.addEventListener("wheel", (e) => { if (e.deltaY > 0) afterSplash(); }, { passive: true });
+  document.addEventListener("keydown", function onKey(e) {
+    if (state.splashDone) { document.removeEventListener("keydown", onKey); return; }
+    if (["Enter", " ", "ArrowUp"].includes(e.key)) afterSplash();
+  });
 }
 
 /* ---------- terms ----------
