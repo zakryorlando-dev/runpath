@@ -46,13 +46,14 @@
     <div class="splash-stage" id="splash-stage">
       <div class="splash">
         <!-- One unbroken stroke, no stem, drawn as geometry rather than by hand:
-             a dead-straight top, a true half circle for the bowl, a straight
-             waist, a small turn echoing that circle, then one wide arc out to
-             the leg. Straight lines and circular arcs only, no free-form
-             control points. A dot marks each end of the run. -->
+             straight lines and circular arcs only, no free-form control points.
+             Every join is tangent to the one before it - each arc's centre sits
+             square to the direction the line is already travelling - so the
+             whole letter is one continuous curve with no corners in it.
+             A dot marks each end of the run. -->
         <svg class="splash-route" viewBox="0 0 130 182" aria-hidden="true">
           <path class="route-line"
-                d="M14 18 H82 A34 34 0 0 1 82 86 H58 A12 12 0 0 0 54 108 A78 78 0 0 1 120 174"
+                d="M14 18 H82 A34 34 0 0 1 82 86 H58 A14 14 0 0 0 58 114 A62 62 0 0 1 120 174"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
           <circle class="route-start" cx="14" cy="18" r="6"/>
           <circle class="route-end" cx="120" cy="174" r="7"/>

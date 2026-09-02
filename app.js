@@ -242,7 +242,7 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "15:58";           // shown on the splash while this is in doubt
+const BUILD = "16:07";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 450;     // a breath of blank before the sequence starts,
                                  // tripled to see what it does to the phone's reveal
 const INTRO_REPLAY_BLANK_MS = 900;   // a beat of blank before a restart, so a
