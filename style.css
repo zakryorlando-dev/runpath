@@ -349,3 +349,11 @@ html, body {
   transition: transform var(--hold-ms, 4000ms) linear;
 }
 
+
+/* ---------- dark map ----------
+   The free dark tile services all want an API key now, so the light OSM tiles
+   get inverted in the browser instead. Only the tile pane is filtered, so the
+   route line, markers and attribution keep their real colours. */
+.leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(1) saturate(0.35);
+}
