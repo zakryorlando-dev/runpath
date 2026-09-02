@@ -242,17 +242,17 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "12:10";           // shown on the splash while this is in doubt
+const BUILD = "12:31";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 150;     // a breath of blank; the frame-gap watch
                                  // below is what actually handles a late reveal
 const INTRO_REPLAY_BLANK_MS = 300;   // a beat of blank before a restart, so a
                                      // restart reads as deliberate
-const INTRO_WATCH_MS = 18000;    // the whole sequence: a recording showed the
-                                 // reveal landing seven seconds in, long after a
-                                 // short watch had given up
+const INTRO_WATCH_MS = 15000;    // long enough to catch a late reveal (a recording
+                                 // showed one landing seven seconds in), short enough
+                                 // that nothing rewinds once you are well into it
 const INTRO_GAP_MS = 600;        // a pause this long means frames weren't being seen.
-                                 // Generous, because the watch now runs the whole
-                                 // sequence and a stutter must not restart it mid-view
+                                 // Generous, so a stutter on a tired phone is not
+                                 // mistaken for a reveal
 
 function startIntro(stage) {
   let restarts = 0;
