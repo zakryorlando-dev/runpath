@@ -1429,7 +1429,7 @@ function resolveActiveRoute() {
 }
 
 // the last few runs, offered as routes to repeat
-function recentRunRoutes(limit = 5) {
+function recentRunRoutes(limit = 3) {
   return loadRuns()
     .filter((r) => runDistance(r) > 480 && runPath(r).flat().length > 3)
     .slice(0, limit);
