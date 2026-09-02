@@ -868,14 +868,18 @@ html, body {
   stroke-width: 5;
   stroke-dasharray: 320;
   stroke-dashoffset: 320;
+}
+.playing .route-line {
   animation: draw-route 3000ms cubic-bezier(0.45, 0.05, 0.3, 1) 600ms forwards;
 }
 .route-start, .route-end { fill: var(--accent); opacity: 0; }
-.route-start { animation: drop-bounce 780ms cubic-bezier(0.3, 0, 0.5, 1) forwards; }
+.playing .route-start { animation: drop-bounce 780ms cubic-bezier(0.3, 0, 0.5, 1) forwards; }
 .route-end {
   fill: #fff;
   stroke: var(--accent);
   stroke-width: 3;
+}
+.playing .route-end {
   animation: pop 460ms cubic-bezier(0.2, 1.6, 0.4, 1) 3560ms forwards;
 }
 
@@ -883,8 +887,8 @@ html, body {
   font-size: 42px;
   letter-spacing: -1px;
   opacity: 0;
-  animation: rise 700ms ease-out 3820ms forwards;
 }
+.playing .splash-title { animation: rise 700ms ease-out 3820ms forwards; }
 .splash-title .dot { color: var(--accent); }
 
 .splash-tagline {
@@ -892,8 +896,8 @@ html, body {
   font-size: 16px;
   margin-top: 6px;
   opacity: 0;
-  animation: rise 700ms ease-out 3980ms forwards;
 }
+.playing .splash-tagline { animation: rise 700ms ease-out 3980ms forwards; }
 
 /* The screen waits now, so something has to say why. Breathes rather than
    blinks - enough to catch the eye without nagging. */
@@ -916,6 +920,8 @@ html, body {
   text-transform: uppercase;
   cursor: pointer;
   opacity: 0;
+}
+.playing .splash-go {
   animation: fade-in 700ms ease-out 4450ms forwards,
              breathe 2600ms ease-in-out 5150ms infinite;
 }
@@ -923,8 +929,8 @@ html, body {
   width: 26px;
   height: 26px;
   margin-bottom: 4px;
-  animation: chev-drift 2600ms ease-in-out 5150ms infinite;
 }
+.playing .splash-go .chev { animation: chev-drift 2600ms ease-in-out 5150ms infinite; }
 .go-line { line-height: 1.5; }
 
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.32; } }
@@ -946,13 +952,19 @@ html, body {
 .route-start, .route-end { transform-box: fill-box; transform-origin: center; }
 
 /* somebody who asked their phone to calm down gets the still version */
+/* Reduce Motion means no movement - it doesn't mean no sequence. Everything
+   still arrives in order, it just fades instead of travelling, and the line
+   appears whole rather than drawing itself across the screen. */
 @media (prefers-reduced-motion: reduce) {
-  .route-line { animation: none; stroke-dashoffset: 0; }
-  .route-start, .route-end, .splash-title, .splash-tagline, .splash-go {
-    animation: none;
-    opacity: 1;
-  }
-  .splash-go .chev { animation: none; }
+  .route-line { stroke-dashoffset: 0; opacity: 0; }
+  .playing .route-line { animation: fade-in 600ms ease-out forwards; }
+  .playing .route-start { animation: fade-in 400ms ease-out forwards; }
+  .playing .route-end { animation: fade-in 400ms ease-out 500ms forwards; }
+  .playing .splash-title { animation: fade-in 500ms ease-out 800ms forwards; }
+  .playing .splash-tagline { animation: fade-in 500ms ease-out 950ms forwards; }
+  .playing .splash-go { animation: fade-in 500ms ease-out 1300ms forwards; }
+  .playing .splash-go .chev { animation: none; }
+  .splash-stage.settling, .splash-stage.leaving { transition-duration: 200ms; }
 }
 
 

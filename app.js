@@ -230,6 +230,30 @@ function afterSplash() {
   else openAfterTerms();
 }
 
+/* An animation's clock starts when the animation does, not when anything is
+   drawn. A launching app spends a moment fetching and parsing before its first
+   paint, and a three-second intro started at script time can be over before a
+   single frame reaches the screen - which looks like a flash and then the end
+   state. So wait for a painted frame, and for the page to actually be visible,
+   before letting it begin. */
+function startIntro(stage) {
+  const begin = () => {
+    void stage.offsetWidth;                    // replay from the top each launch
+    stage.classList.add("playing");
+  };
+  const onNextPaint = () => requestAnimationFrame(() => requestAnimationFrame(begin));
+
+  if (document.visibilityState === "hidden") {
+    document.addEventListener("visibilitychange", function once() {
+      if (document.visibilityState === "hidden") return;
+      document.removeEventListener("visibilitychange", once);
+      onNextPaint();
+    });
+    return;
+  }
+  onNextPaint();
+}
+
 function runSplash() {
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
@@ -238,9 +262,11 @@ function runSplash() {
 
   const screen = document.querySelector("#screen-splash");
   const stage = splashStage();
-  stage.classList.remove("settling", "leaving");
+  stage.classList.remove("settling", "leaving", "playing");
   stage.style.transform = "";
   stage.style.opacity = "";
+
+  startIntro(stage);
 
   let startY = null, dragged = 0;
 
