@@ -635,7 +635,7 @@ function togglePause() {
 }
 
 function stopRun() {
-  if (!confirm("Finish this run?")) return;
+  if (!state.tracking) return;
   const durationMs = elapsedMs();
 
   state.tracking = false;
@@ -675,6 +675,47 @@ function stopRun() {
     if (state.currentRun === run) showDetail(run);
     if (ok) refreshHome();
   });
+}
+
+/* ---------- hold to finish ----------
+   Holding for four seconds is the confirmation, so there's no dialog to dismiss
+   with cold hands. Releasing early cancels; a quick tap says so rather than
+   appearing to do nothing. */
+
+const HOLD_MS = 4000;
+
+function holdToFire(btn, onFire) {
+  let timer = null, started = 0, hintTimer = null;
+  const label = btn.textContent;
+
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+    btn.classList.remove("holding");
+  };
+
+  btn.addEventListener("pointerdown", (e) => {
+    if (btn.disabled) return;
+    e.preventDefault();
+    clearTimeout(hintTimer);
+    btn.textContent = label;
+    started = Date.now();
+    btn.style.setProperty("--hold-ms", `${HOLD_MS}ms`);
+    btn.classList.add("holding");
+    timer = setTimeout(() => { cancel(); onFire(); }, HOLD_MS);
+  });
+
+  for (const ev of ["pointerup", "pointercancel", "pointerleave"]) {
+    btn.addEventListener(ev, () => {
+      if (!timer) return;
+      const held = Date.now() - started;
+      cancel();
+      if (held < 600) {                       // looked like a tap; explain
+        btn.textContent = "Keep holding…";
+        hintTimer = setTimeout(() => { btn.textContent = label; }, 1400);
+      }
+    });
+  }
 }
 
 /* ---------- run detail ---------- */
@@ -1213,7 +1254,8 @@ $("#gpx-input").addEventListener("change", (e) => {
 $("#btn-pause").addEventListener("click", togglePause);
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
 $("#btn-wake").addEventListener("click", (e) => { e.stopPropagation(); hideDim(); armDim(); });
-$("#btn-stop").addEventListener("click", stopRun);
+holdToFire($("#btn-stop"), stopRun);
+holdToFire($("#btn-dim-finish"), stopRun);
 $("#btn-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-share").addEventListener("click", shareRun);
 $("#btn-snap").addEventListener("click", snapCurrentRun);

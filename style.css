@@ -313,3 +313,42 @@ html, body {
 
 /* planned mileage sits behind the bar that was actually run */
 .chart .bar.target { fill: #1e3a30; }
+
+
+/* ---------- hold to finish ----------
+   A run shouldn't end on a stray tap, so finishing fills across the button
+   over four seconds and lets go of nothing if you release early. */
+
+.btn-hold { position: relative; overflow: hidden; isolation: isolate; }
+.btn-hold::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: rgba(255, 255, 255, 0.4);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 120ms ease-out;
+}
+.btn-hold.holding::before {
+  transform: scaleX(1);
+  transition: transform var(--hold-ms, 4000ms) linear;
+}
+
+/* dim screen: finishing lives opposite Wake, and is just as deliberate */
+.dim-finish {
+  position: absolute;
+  left: 16px;
+  bottom: calc(var(--safe-bottom) + 16px);
+  width: 122px;
+  height: 44px;
+  border-radius: 22px;
+  background: transparent;
+  border: 1px solid #3a1613;
+  color: #7a2a24;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.dim-finish.btn-hold::before { background: rgba(248, 81, 73, 0.32); }
