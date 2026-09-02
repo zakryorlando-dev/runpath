@@ -1141,7 +1141,7 @@ function buildGpx(run) {
 <gpx version="1.1" creator="RunPath" xmlns="http://www.topografix.com/GPX/1/1">
   <trk>
     <name>Run ${new Date(run.date).toISOString().slice(0, 10)}</name>
-    <type>running</type>
+    <type>${GPX_TYPE[runType(run)]}</type>
 ${segs}
   </trk>
 </gpx>`;
@@ -2233,6 +2233,9 @@ window.addEventListener("runpath-sync-ready", () => {
    between devices and clouds is no place for a client secret. */
 
 const BACKUP_VERSION = 1;
+
+// what a GPX file calls each of our activity types
+const GPX_TYPE = { run: "running", walk: "walking", bike: "cycling" };
 
 function buildBackup() {
   return JSON.stringify({
