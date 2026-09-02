@@ -160,6 +160,50 @@ function renderHistory() {
   }
 }
 
+/* ---------- terms ----------
+   The app records where someone goes and suggests how hard to train, so it
+   asks before doing either. Nothing else opens until this is accepted, and the
+   version is recorded so a material change can ask again. */
+
+const TERMS_KEY = "runpath.accepted";
+const TERMS_VERSION = "1";
+
+function termsAccepted() {
+  try { return localStorage.getItem(TERMS_KEY) === TERMS_VERSION; }
+  catch { return false; }
+}
+
+function acceptTerms() {
+  try { localStorage.setItem(TERMS_KEY, TERMS_VERSION); } catch {}
+  openAfterTerms();
+}
+
+function declineTerms() {
+  $("#terms-body").hidden = true;
+  $("#terms-declined").hidden = false;
+  document.querySelector("#screen-terms").scrollTop = 0;
+}
+
+function reconsiderTerms() {
+  $("#terms-declined").hidden = true;
+  $("#terms-body").hidden = false;
+  document.querySelector("#screen-terms").scrollTop = 0;
+}
+
+function showTerms() {
+  $("#terms-body").hidden = false;
+  $("#terms-declined").hidden = true;
+  $("#tabbar").hidden = true;
+  $("#start-dock").hidden = true;
+  show("terms");
+}
+
+// where a launch lands once the terms are out of the way
+function openAfterTerms() {
+  if (!onboarded() && !loadRuns().length) startOnboarding();
+  else showTab("home");
+}
+
 /* ---------- welcome ----------
    Shown once, on a phone with no runs and no plan. Every step can be skipped,
    including the account, because the app genuinely doesn't need one. */
@@ -2802,6 +2846,9 @@ document.querySelectorAll(".ob-skip").forEach((b) =>
   }));
 document.querySelectorAll(".ob-finish").forEach((b) =>
   b.addEventListener("click", finishOnboarding));
+$("#btn-accept").addEventListener("click", acceptTerms);
+$("#btn-decline").addEventListener("click", declineTerms);
+$("#btn-reconsider").addEventListener("click", reconsiderTerms);
 $("#ob-create").addEventListener("click", () => obAccount(true));
 $("#ob-signin").addEventListener("click", () => obAccount(false));
 $("#ob-build").addEventListener("click", obBuildPlan);
@@ -2820,8 +2867,8 @@ setDimPref(loadDimPref());
 stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
 migrateRuns();
 state.profile = loadProfile();
-if (!onboarded() && !loadRuns().length) startOnboarding();
-else showTab("home");
+if (!termsAccepted()) showTerms();
+else openAfterTerms();
 loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
 
 if ("serviceWorker" in navigator &&

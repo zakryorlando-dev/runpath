@@ -823,3 +823,11 @@ html, body {
   cursor: pointer;
 }
 .btn-ghost.wide.danger { color: var(--danger); border-color: rgba(248, 81, 73, 0.4); }
+
+
+#screen-terms {
+  padding: calc(var(--safe-top) + 34px) 22px calc(var(--safe-bottom) + 28px);
+  overflow-y: auto;
+}
+#screen-terms .btn-primary { margin-top: 4px; }
+#terms-declined[hidden] { display: none; }
