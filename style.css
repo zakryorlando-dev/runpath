@@ -331,7 +331,7 @@ html, body {
 }
 .plan-fill.done { background: #7af5c6; }
 
-.plan-note { font-size: 13px; color: var(--muted); }
+.plan-note { font-size: 13px; color: var(--muted); white-space: pre-line; line-height: 1.5; }
 .plan-note strong { color: var(--text); font-weight: 700; }
 
 /* planned mileage sits behind the bar that was actually run */

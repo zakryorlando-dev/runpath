@@ -212,17 +212,19 @@ function renderPlan(week) {
       days > 1 ? `race in ${days} days` : days === 1 ? "race tomorrow" : "race day";
   }
 
+  // same wording, stacked: what kind of week, where you are, the long run
   const left = Math.max(0, target - done);
-  const parts = [`${Math.round(done)} of ${target} min`];
-  parts.push(left >= 1 ? `${Math.round(left)} to go` : "week complete");
+  const lines = [];
+  if (wk.note) lines.push(wk.note);
+  lines.push(`${Math.round(done)} of ${target} min · ` +
+    (left >= 1 ? `${Math.round(left)} to go` : "week complete"));
   if (wk.longRunMinutes) {
-    parts.push(`long run ${wk.longRunMinutes} min` +
+    lines.push(`long run ${wk.longRunMinutes} min` +
       (wk.longRunMiles ? ` (~${wk.longRunMiles} mi)` : ""));
   } else if (wk.longRunMiles) {
-    parts.push(`race ${wk.longRunMiles} mi`);
+    lines.push(`race ${wk.longRunMiles} mi`);
   }
-  if (wk.note) parts.push(wk.note);
-  $("#plan-note").textContent = parts.join(" \u00b7 ");   // plain text, never markup
+  $("#plan-note").textContent = lines.join("\n");   // plain text, never markup
 }
 
 /* ---------- today's session, and routes pinned to Home ----------
