@@ -782,3 +782,44 @@ html, body {
 }
 .ob-choices.stack .chip { text-align: left; }
 .chip.on { border-color: var(--accent); color: var(--accent); }
+
+
+/* ---------- disclosures ---------- */
+
+.disclosure {
+  background: #12171f;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 16px 0;
+}
+.disclosure p {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 10px;
+}
+.disclosure p:last-child { margin-bottom: 0; }
+.disclosure b { color: var(--text); }
+.disclosure.warn { border-color: rgba(217, 164, 65, 0.45); }
+
+.ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  margin-bottom: 14px;
+  cursor: pointer;
+}
+.ack input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
+
+.about { margin-bottom: 18px; }
+.about summary {
+  color: var(--muted);
+  font-size: 14px;
+  padding: 12px 0;
+  cursor: pointer;
+}
+.btn-ghost.wide.danger { color: var(--danger); border-color: rgba(248, 81, 73, 0.4); }

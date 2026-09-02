@@ -228,6 +228,10 @@ function obBuildPlan() {
   const level = state.obChoices["ob-level"] || "new";
   const days = Number(state.obChoices["ob-days"]) || 3;
   if (!goal) { alert("Pick what you're training for first, or skip this step."); return; }
+  if (!$("#ob-ack").checked) {
+    alert("Please read the note above and tick the box first.");
+    return;
+  }
 
   const raceValue = $("#ob-race").value;
   let weeks = null, raceDate = null;
@@ -2521,6 +2525,29 @@ window.addEventListener("runpath-sync-ready", () => {
   });
 });
 
+/* Deleting an account has to actually delete the data, not just the login.
+   Firebase refuses to remove an account that signed in a while ago, so if that
+   happens the data is gone and the sign-in needs redoing before the last step
+   - which is worth saying plainly rather than failing quietly. */
+async function deleteAccountAndData() {
+  const api = syncApi();
+  if (!api || !api.user) { alert("You're not signed in, so there's nothing stored in the cloud."); return; }
+  if (!confirm("Delete everything stored in the cloud for this account? Runs already on this phone are kept.")) return;
+
+  try {
+    const outcome = await api.deleteEverything();
+    if (outcome === "data-only") {
+      alert("Your cloud data is deleted. Firebase wants a fresh sign-in before it will remove the login itself — sign in again and tap this once more to finish.");
+    } else {
+      alert("Account and cloud data deleted.");
+    }
+    renderSync(null);
+    syncState("Ready");
+  } catch (err) {
+    alert(`Couldn't finish deleting: ${err.message || err}`);
+  }
+}
+
 /* ---------- backup ----------
    Everything lives on one phone, so there needs to be a way off it. One file
    with every run and route; restoring merges rather than replaces, so pulling
@@ -2712,6 +2739,7 @@ $("#btn-strava-manual").addEventListener("click", connectStravaManual);
 $("#btn-strava-forget").addEventListener("click", forgetStrava);
 $("#btn-sync-in").addEventListener("click", () => syncSignIn(false));
 $("#btn-sync-up").addEventListener("click", () => syncSignIn(true));
+$("#btn-delete-account").addEventListener("click", deleteAccountAndData);
 $("#btn-sync-forgot").addEventListener("click", syncResetPassword);
 $("#btn-sync-now").addEventListener("click", () => runSync());
 $("#btn-sync-out").addEventListener("click", async () => {

@@ -21,6 +21,7 @@ import {
 import {
   getFirestore, collection, doc, getDocs, setDoc, deleteDoc,
 } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+import { deleteUser } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDZ_FUtGvNPAV7mPAp8C45lBGfQ0uSKJ2k",
@@ -138,6 +139,24 @@ async function push(kind, record) {
   } catch {}
 }
 
+/* Everything this account has stored, removed for real. The login goes last,
+   so a failure there still leaves the data gone rather than the reverse. */
+async function deleteEverything() {
+  if (!user) throw new Error("not signed in");
+  for (const kind of ["runs", "routes", "meta", "deleted"]) {
+    const snap = await getDocs(collection(db, "users", user.uid, kind));
+    for (const d of snap.docs) {
+      await deleteDoc(doc(db, "users", user.uid, kind, d.id));
+    }
+  }
+  try {
+    await deleteUser(user);
+    return "all";
+  } catch {
+    return "data-only";        // Firebase wants a recent sign-in for this part
+  }
+}
+
 window.RunPathSync = {
   ready: true,
   get user() { return user; },
@@ -155,6 +174,7 @@ window.RunPathSync = {
   syncNow,
   push,
   remember,
+  deleteEverything,
 };
 
 window.dispatchEvent(new Event("runpath-sync-ready"));
