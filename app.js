@@ -242,12 +242,12 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "11:47";           // shown on the splash while this is in doubt
+const BUILD = "11:56";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 150;     // a breath of blank; the frame-gap watch
                                  // below is what actually handles a late reveal
 const INTRO_REPLAY_BLANK_MS = 300;   // a beat of blank before a restart, so a
                                      // restart reads as deliberate
-const INTRO_WATCH_MS = 2600;     // how long to keep watching for the reveal
+const INTRO_WATCH_MS = 3200;     // how long to keep watching for the reveal
 const INTRO_GAP_MS = 220;        // a pause this long means frames weren't being seen
 
 function startIntro(stage) {

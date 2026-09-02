@@ -870,17 +870,17 @@ html, body {
   stroke-dashoffset: 320;
 }
 .playing .route-line {
-  animation: draw-route 4500ms cubic-bezier(0.45, 0.05, 0.3, 1) 800ms forwards;
+  animation: draw-route 7500ms cubic-bezier(0.4, 0.02, 0.35, 1) 1300ms forwards;
 }
 .route-start, .route-end { fill: var(--accent); opacity: 0; }
-.playing .route-start { animation: drop-bounce 900ms cubic-bezier(0.3, 0, 0.5, 1) forwards; }
+.playing .route-start { animation: drop-bounce 1500ms cubic-bezier(0.3, 0, 0.5, 1) forwards; }
 .route-end {
   fill: #fff;
   stroke: var(--accent);
   stroke-width: 3;
 }
 .playing .route-end {
-  animation: pop 540ms cubic-bezier(0.2, 1.6, 0.4, 1) 5250ms forwards;
+  animation: drop-land 1100ms cubic-bezier(0.3, 0, 0.4, 1) 8600ms forwards;
 }
 
 .splash-title {
@@ -888,7 +888,7 @@ html, body {
   letter-spacing: -1px;
   opacity: 0;
 }
-.playing .splash-title { animation: rise 850ms ease-out 5620ms forwards; }
+.playing .splash-title { animation: rise 1000ms ease-out 9500ms forwards; }
 .splash-title .dot { color: var(--accent); }
 
 .splash-tagline {
@@ -897,7 +897,7 @@ html, body {
   margin-top: 6px;
   opacity: 0;
 }
-.playing .splash-tagline { animation: rise 850ms ease-out 5860ms forwards; }
+.playing .splash-tagline { animation: rise 1000ms ease-out 9800ms forwards; }
 
 /* The screen waits now, so something has to say why. Breathes rather than
    blinks - enough to catch the eye without nagging. */
@@ -922,15 +922,15 @@ html, body {
   opacity: 0;
 }
 .playing .splash-go {
-  animation: fade-in 700ms ease-out 6450ms forwards,
-             breathe 2600ms ease-in-out 7150ms infinite;
+  animation: fade-in 800ms ease-out 10600ms forwards,
+             breathe 2800ms ease-in-out 11400ms infinite;
 }
 .splash-go .chev {
   width: 26px;
   height: 26px;
   margin-bottom: 4px;
 }
-.playing .splash-go .chev { animation: chev-drift 2600ms ease-in-out 7150ms infinite; }
+.playing .splash-go .chev { animation: chev-drift 2800ms ease-in-out 11400ms infinite; }
 .go-line { line-height: 1.5; }
 
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.32; } }
@@ -946,6 +946,14 @@ html, body {
   100% { opacity: 1; transform: translateY(0); }
 }
 @keyframes pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+@keyframes drop-land {
+  0%   { opacity: 0; transform: translateY(-22px) scale(0.7); }
+  45%  { opacity: 1; transform: translateY(0) scale(1); }
+  62%  { transform: translateY(-7px); }
+  78%  { transform: translateY(0); }
+  90%  { transform: translateY(-2.5px); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { to { opacity: 1; } }
 
