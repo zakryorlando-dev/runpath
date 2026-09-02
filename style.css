@@ -861,17 +861,17 @@ html, body {
 
 /* The whole intro's clock, in one place. */
 :root {
-  --sp-dot:         60000ms;
-  --sp-line:       288000ms;
-  --sp-line-delay:  54000ms;
-  --sp-end:         60000ms;
-  --sp-end-delay:  334000ms;
-  --sp-words:       16000ms;
-  --sp-title-delay: 400000ms;
-  --sp-tag-delay:  420000ms;
-  --sp-go:          12000ms;
-  --sp-go-delay:   440000ms;
-  --sp-pulse-delay: 453000ms;
+  --sp-dot:          1300ms;
+  --sp-line:         6400ms;
+  --sp-line-delay:   1200ms;
+  --sp-end:          1400ms;
+  --sp-end-delay:    7400ms;
+  --sp-words:         700ms;
+  --sp-title-delay:  8800ms;
+  --sp-tag-delay:    9250ms;
+  --sp-go:            700ms;
+  --sp-go-delay:     9600ms;
+  --sp-pulse-delay: 10300ms;
 }
 
 .splash-route { width: 100%; max-width: 300px; height: auto; margin-bottom: 22px; }
