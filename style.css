@@ -869,13 +869,13 @@ html, body {
   --sp-move:          550ms;   /* the R shrinking into place and sliding left */
   --sp-move-delay:   2450ms;
   --sp-word:          500ms;   /* "unpath" arriving in the space it left */
-  --sp-word-delay:   2600ms;
-  --sp-words:         450ms;
-  --sp-title-delay:  3150ms;
-  --sp-tag-delay:    3350ms;
+  --sp-word-delay:   3100ms;   /* half a second later - the R gets a beat alone */
+  --sp-words:        1200ms;   /* the greeting takes its time now */
+  --sp-title-delay:  3650ms;
+  --sp-tag-delay:    3850ms;
   --sp-go:            350ms;
-  --sp-go-delay:     3650ms;
-  --sp-pulse-delay:  4000ms;
+  --sp-go-delay:     4700ms;
+  --sp-pulse-delay:  5100ms;
 }
 
 /* The R is drawn big and alone in the middle of the screen, then shrinks into
