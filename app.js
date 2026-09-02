@@ -233,41 +233,50 @@ function afterSplash() {
 
 /* Getting an intro to start when it can actually be seen is harder than it
    sounds on iOS. A launching web app sits behind the system's launch screen,
-   and frames are produced back there - so requestAnimationFrame fires long
-   before anything reaches the eye, and an animation started on it burns
-   through most of its length unwatched.
+   and frames are produced back there, so requestAnimationFrame fires long
+   before anything reaches the eye. Two recordings, on two phones, showed the
+   reveal landing with the line already nine tenths drawn.
 
-   Screen recordings of this app launching showed the reveal landing roughly a
-   second after the page began drawing. So: wait for the page to finish
-   loading, then a couple of frames, then a beat longer. And afterwards check
-   whether the clock ran further than real time could account for - the
-   signature of a stretch spent hidden - and if so, start it again. */
+   So this stops trying to predict the reveal and watches for it instead. A
+   page being composited produces frames a few milliseconds apart; one behind
+   a launch screen does not. A long gap between frames is the reveal, and the
+   intro starts again from the top when one appears. */
 
-const INTRO_SETTLE_MS = 450;    // beyond load, to let the launch screen lift
-const INTRO_CHECK_MS = 900;     // when to ask whether it really played
+const BUILD = "11:26";           // shown on the splash while this is in doubt
+const INTRO_SETTLE_MS = 700;     // after load, before a first attempt
+const INTRO_WATCH_MS = 2600;     // how long to keep watching for the reveal
+const INTRO_GAP_MS = 220;        // a pause this long means frames weren't being seen
 
 function startIntro(stage) {
+  let restarts = 0;
+
   const play = () => {
     stage.classList.remove("playing");
     void stage.offsetWidth;                    // replay from the top
     stage.classList.add("playing");
-
-    const startedAt = performance.now();
-    setTimeout(() => {
-      const line = document.querySelector(".route-line");
-      const anim = line && line.getAnimations()[0];
-      if (!anim || state.introRestarted || state.splashDone) return;
-      const real = performance.now() - startedAt;
-      // a clock well ahead of the wall clock means frames went unseen
-      if ((anim.currentTime || 0) > real + 700) {
-        state.introRestarted = true;
-        play();
-      }
-    }, INTRO_CHECK_MS);
+    watch();
   };
 
-  const arm = () => requestAnimationFrame(() =>
-    requestAnimationFrame(() => setTimeout(play, INTRO_SETTLE_MS)));
+  /* Watch the frame cadence for a while after starting. A gap means the phone
+     wasn't drawing this to the screen, so whatever just played went unseen. */
+  const watch = () => {
+    const until = performance.now() + INTRO_WATCH_MS;
+    let last = performance.now();
+    const tick = (now) => {
+      if (state.splashDone) return;
+      const gap = now - last;
+      last = now;
+      if (gap > INTRO_GAP_MS && restarts < 2) {
+        restarts++;
+        play();
+        return;
+      }
+      if (now < until) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  };
+
+  const arm = () => setTimeout(play, INTRO_SETTLE_MS);
 
   const whenVisible = () => {
     if (document.visibilityState === "hidden") {
@@ -289,6 +298,8 @@ function runSplash() {
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
   renderSplashGreeting();
+  const stamp = $("#build-stamp");
+  if (stamp) stamp.textContent = BUILD;
   show("splash");
 
   const screen = document.querySelector("#screen-splash");

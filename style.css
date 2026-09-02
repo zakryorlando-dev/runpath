@@ -970,3 +970,14 @@ html, body {
 
 .burn { font-size: 12px; text-align: center; margin: -8px 0 12px; }
 .burn[hidden] { display: none; }
+
+
+/* temporary: tells a screen recording which build it is looking at */
+.build-stamp {
+  position: absolute;
+  left: 14px;
+  bottom: calc(var(--safe-bottom) + 10px);
+  color: #2b3440;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+}
