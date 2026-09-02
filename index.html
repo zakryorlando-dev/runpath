@@ -43,6 +43,7 @@
 
     <div class="home-actions">
       <button id="btn-start" class="btn-primary">Start Run</button>
+      <button id="btn-route" class="btn-ghost">Plan a route</button>
       <button id="btn-segments" class="btn-ghost">Segments near me</button>
       <button id="btn-import" class="btn-ghost">Import GPX (watch / Strava)</button>
       <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden>
@@ -188,6 +189,43 @@
           <button id="btn-delete" class="btn-ghost small danger">Delete</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- ROUTE PLANNER -->
+  <section id="screen-route" class="screen">
+    <div id="route-map" class="map"></div>
+
+    <div class="route-panel">
+      <div class="detail-head">
+        <button id="btn-route-back" class="btn-ghost small">&larr; Back</button>
+        <span class="muted" id="route-status">Tap the map to drop a start point</span>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat">
+          <div class="stat-value" id="rt-dist">0.00</div>
+          <div class="stat-label">Miles</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="rt-time">--</div>
+          <div class="stat-label">Est. time</div>
+        </div>
+        <div class="stat">
+          <div class="stat-value" id="rt-pace">--:--</div>
+          <div class="stat-label">Your pace</div>
+        </div>
+      </div>
+      <p class="muted" id="rt-basis"></p>
+
+      <div class="detail-actions-row">
+        <button id="btn-route-undo" class="btn-ghost small">Undo</button>
+        <button id="btn-route-loop" class="btn-ghost small">Loop back</button>
+        <button id="btn-route-clear" class="btn-ghost small">Clear</button>
+        <button id="btn-route-save" class="btn-ghost small">Save</button>
+      </div>
+
+      <div id="route-list" class="route-list"></div>
     </div>
   </section>
 

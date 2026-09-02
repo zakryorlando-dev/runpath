@@ -24,6 +24,15 @@ const state = {
   detailMap: null,
   segMap: null,
   segLines: [],
+  routeMap: null,
+  routeGraph: null,
+  routeFrame: null,
+  routeBounds: null,
+  routeLine: null,
+  routeMarkers: [],
+  routeBusy: false,
+  route: { stops: [], latlngs: [], legs: [], meters: 0 },
+  plannedLine: null,
   currentRun: null,   // run object shown on detail screen
   wakeLock: null,
   wakeTimer: null,
@@ -528,6 +537,7 @@ function startRun(demo) {
   $("#btn-pause").textContent = "Pause";
   $("#btn-pause").classList.remove("resuming");
 
+  drawPlannedRoute();
   keepAwake();
   state.wakeTimer = setInterval(() => { if (state.tracking) keepAwake(); }, 15000);
   armDim();
@@ -535,6 +545,19 @@ function startRun(demo) {
 
   if (demo) startDemoPlayback();
   else startWatching();
+}
+
+// show the route you meant to run underneath the one you're running
+function drawPlannedRoute() {
+  if (state.plannedLine) { state.plannedLine.remove(); state.plannedLine = null; }
+  const id = activeRouteId();
+  if (!id) return;
+  const route = loadRoutes().find((r) => String(r.id) === id);
+  if (!route || !route.latlngs.length) return;
+  state.plannedLine = L.polyline(route.latlngs, {
+    color: "#8b949e", weight: 4, opacity: 0.65, dashArray: "6 8",
+  }).addTo(state.runMap);
+  state.runMap.fitBounds(state.plannedLine.getBounds(), { padding: [40, 40] });
 }
 
 function startWatching() {
@@ -1035,7 +1058,7 @@ function buildStreetGraph(elements, frame) {
     }
   }
   if (!segs.length) throw new Error("no streets found around this route");
-  return { segs, adj };
+  return { segs, adj, xs, ys };
 }
 
 async function fetchStreetGraph(bounds, frame) {
@@ -1220,6 +1243,349 @@ async function snapCurrentRun() {
   await new Promise((r) => setTimeout(r, 0));      // let the label paint
   await snapRun(state.currentRun);
   showDetail(state.currentRun);
+}
+
+/* ---------- route planner ----------
+   Tap points on the map and the line between them follows real streets and
+   paths, using the same OpenStreetMap network the snapping uses. Distance
+   comes from the network, and the time estimate comes from how fast you
+   actually run rather than from a guess. */
+
+const ROUTES_KEY = "runpath.routes";
+const ACTIVE_ROUTE_KEY = "runpath.activeRoute";
+const DEFAULT_PACE_MS = 12 * 60 * 1000;     // 12:00 /mi, only until there's history
+
+function loadRoutes() {
+  try { return JSON.parse(localStorage.getItem(ROUTES_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveRoutes(routes) {
+  try { localStorage.setItem(ROUTES_KEY, JSON.stringify(routes)); } catch {}
+}
+
+function activeRouteId() {
+  try { return localStorage.getItem(ACTIVE_ROUTE_KEY) || null; } catch { return null; }
+}
+
+function setActiveRoute(id) {
+  try {
+    if (id) localStorage.setItem(ACTIVE_ROUTE_KEY, String(id));
+    else localStorage.removeItem(ACTIVE_ROUTE_KEY);
+  } catch {}
+  renderRouteList();
+}
+
+/* Your typical pace, taken as the median of real runs so one crawl or one
+   sprint doesn't skew it. Walk-heavy early weeks will read slow - that's the
+   honest number for someone at that stage. */
+function historyPace() {
+  const runs = loadRuns().filter(
+    (r) => runDistance(r) > 400 && r.durationMs > 120000
+  );
+  if (!runs.length) return { paceMs: DEFAULT_PACE_MS, runs: 0 };
+  const paces = runs
+    .map((r) => r.durationMs / (runDistance(r) / MI))
+    .sort((a, b) => a - b);
+  return { paceMs: paces[Math.floor(paces.length / 2)], runs: runs.length };
+}
+
+function fmtPaceMs(ms) {
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+}
+
+// Dijkstra between two nodes, keeping predecessors so the path can be walked back
+function routeBetween(graph, from, to) {
+  const dist = new Map([[from, 0]]);
+  const prev = new Map();
+  const done = new Set();
+  const heap = [{ n: from, d: 0 }];
+
+  const push = (n, d) => {
+    heap.push({ n, d });
+    let i = heap.length - 1;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heap[p].d <= heap[i].d) break;
+      [heap[p], heap[i]] = [heap[i], heap[p]];
+      i = p;
+    }
+  };
+  const pop = () => {
+    const top = heap[0], last = heap.pop();
+    if (heap.length) {
+      heap[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < heap.length && heap[l].d < heap[m].d) m = l;
+        if (r < heap.length && heap[r].d < heap[m].d) m = r;
+        if (m === i) break;
+        [heap[m], heap[i]] = [heap[i], heap[m]];
+        i = m;
+      }
+    }
+    return top;
+  };
+
+  while (heap.length) {
+    const { n, d } = pop();
+    if (done.has(n)) continue;
+    done.add(n);
+    if (n === to) break;
+    for (const e of graph.adj[n]) {
+      const nd = d + e.w;
+      if (!dist.has(e.to) || dist.get(e.to) > nd) {
+        dist.set(e.to, nd);
+        prev.set(e.to, n);
+        push(e.to, nd);
+      }
+    }
+  }
+
+  if (!dist.has(to)) return null;
+  const path = [to];
+  let cur = to;
+  while (cur !== from) { cur = prev.get(cur); path.unshift(cur); }
+  return { path, meters: dist.get(to) };
+}
+
+function nearestNode(graph, lat, lng, frame) {
+  const px = lng * frame.mx, py = lat * frame.my;
+  let best = -1, bestD = Infinity;
+  for (let i = 0; i < graph.xs.length; i++) {
+    const d = (graph.xs[i] - px) ** 2 + (graph.ys[i] - py) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return Math.sqrt(bestD) < 250 ? best : -1;    // nothing runnable within 250 m
+}
+
+function routeStatus(text) { $("#route-status").textContent = text; }
+
+function nodeLatLng(graph, frame, n) {
+  return [graph.ys[n] / frame.my, graph.xs[n] / frame.mx];
+}
+
+function renderRouteStats() {
+  const r = state.route;
+  const miles = r.meters / MI;
+  $("#rt-dist").textContent = miles.toFixed(2);
+  const { paceMs, runs } = historyPace();
+  $("#rt-pace").textContent = `${fmtPaceMs(paceMs)}`;
+  $("#rt-time").textContent = miles > 0 ? fmtDuration(miles * paceMs) : "--";
+  $("#rt-basis").textContent = runs
+    ? `Estimated from your last ${runs} run${runs === 1 ? "" : "s"} (median pace).`
+    : "No run history yet, so this assumes 12:00 /mi.";
+}
+
+function drawRoute() {
+  const map = state.routeMap;
+  if (state.routeLine) state.routeLine.remove();
+  (state.routeMarkers || []).forEach((m) => m.remove());
+  state.routeMarkers = [];
+
+  state.routeLine = L.polyline(state.route.latlngs, {
+    color: "#2ee59d", weight: 5, opacity: 0.9,
+  }).addTo(map);
+
+  state.route.stops.forEach((s, i) => {
+    const m = L.circleMarker(nodeLatLng(state.routeGraph, state.routeFrame, s), {
+      radius: i === 0 ? 8 : 6,
+      color: "#fff",
+      weight: 2,
+      fillColor: i === 0 ? "#2ee59d" : "#1db07a",
+      fillOpacity: 1,
+    }).addTo(map);
+    state.routeMarkers.push(m);
+  });
+  renderRouteStats();
+}
+
+async function ensureRouteGraph(lat, lng) {
+  const pad = 0.022;                          // ~2.4 km around the first tap
+  const inside = state.routeBounds &&
+    lat > state.routeBounds.s + 0.002 && lat < state.routeBounds.n - 0.002 &&
+    lng > state.routeBounds.w + 0.002 && lng < state.routeBounds.e - 0.002;
+  if (state.routeGraph && inside) return;
+
+  routeStatus("loading streets and paths…");
+  const bounds = state.routeBounds
+    ? { s: Math.min(state.routeBounds.s, lat - pad), n: Math.max(state.routeBounds.n, lat + pad),
+        w: Math.min(state.routeBounds.w, lng - pad), e: Math.max(state.routeBounds.e, lng + pad) }
+    : { s: lat - pad, n: lat + pad, w: lng - pad, e: lng + pad };
+  const frame = localFrame((bounds.s + bounds.n) / 2);
+  state.routeGraph = await fetchStreetGraph(bounds, frame);
+  state.routeFrame = frame;
+  state.routeBounds = bounds;
+}
+
+async function addRoutePoint(lat, lng) {
+  if (state.routeBusy) return;
+  state.routeBusy = true;
+  try {
+    await ensureRouteGraph(lat, lng);
+    const node = nearestNode(state.routeGraph, lat, lng, state.routeFrame);
+    if (node < 0) { routeStatus("nothing runnable that close — try nearer a street or path"); return; }
+
+    const r = state.route;
+    if (!r.stops.length) {
+      r.stops.push(node);
+      r.latlngs.push(nodeLatLng(state.routeGraph, state.routeFrame, node));
+      routeStatus("tap again to extend the route");
+    } else {
+      const leg = routeBetween(state.routeGraph, r.stops[r.stops.length - 1], node);
+      if (!leg) { routeStatus("no run-able way through to there"); return; }
+      const pts = leg.path.map((n) => nodeLatLng(state.routeGraph, state.routeFrame, n));
+      r.latlngs.push(...pts.slice(1));
+      r.legs.push({ points: pts.length - 1, meters: leg.meters });
+      r.stops.push(node);
+      r.meters += leg.meters;
+      routeStatus("tap to extend, or save it");
+    }
+    drawRoute();
+  } catch (err) {
+    routeStatus(`couldn't load the map data: ${err.message}`);
+  } finally {
+    state.routeBusy = false;
+  }
+}
+
+function undoRoutePoint() {
+  const r = state.route;
+  if (r.stops.length < 2) { clearRoute(); return; }
+  const leg = r.legs.pop();
+  r.latlngs.splice(r.latlngs.length - leg.points);
+  r.stops.pop();
+  r.meters -= leg.meters;
+  drawRoute();
+  routeStatus("tap to extend, or save it");
+}
+
+function clearRoute() {
+  state.route = { stops: [], latlngs: [], legs: [], meters: 0 };
+  if (state.routeLine) { state.routeLine.remove(); state.routeLine = null; }
+  (state.routeMarkers || []).forEach((m) => m.remove());
+  state.routeMarkers = [];
+  renderRouteStats();
+  routeStatus("Tap the map to drop a start point");
+}
+
+// send the route home the way it came, which is how most training loops work
+async function loopRouteBack() {
+  const r = state.route;
+  if (r.stops.length < 2) return;
+  const back = [...r.stops].reverse().slice(1);
+  for (const node of back) {
+    const leg = routeBetween(state.routeGraph, r.stops[r.stops.length - 1], node);
+    if (!leg) break;
+    const pts = leg.path.map((n) => nodeLatLng(state.routeGraph, state.routeFrame, n));
+    r.latlngs.push(...pts.slice(1));
+    r.legs.push({ points: pts.length - 1, meters: leg.meters });
+    r.stops.push(node);
+    r.meters += leg.meters;
+  }
+  drawRoute();
+  routeStatus("looped back to the start");
+}
+
+function saveCurrentRoute() {
+  const r = state.route;
+  if (r.latlngs.length < 2) { routeStatus("nothing to save yet"); return; }
+  const miles = (r.meters / MI).toFixed(2);
+  const name = prompt("Name this route", `${miles} mi route`);
+  if (name === null) return;
+  const routes = loadRoutes();
+  routes.unshift({
+    id: Date.now(),
+    name: name.trim() || `${miles} mi route`,
+    meters: Math.round(r.meters),
+    latlngs: r.latlngs,
+  });
+  saveRoutes(routes);
+  renderRouteList();
+  routeStatus("saved");
+}
+
+function renderRouteList() {
+  const list = $("#route-list");
+  if (!list) return;
+  const routes = loadRoutes();
+  const active = activeRouteId();
+  list.replaceChildren();
+  if (!routes.length) return;
+
+  for (const route of routes) {
+    const el = document.createElement("div");
+    el.className = "route-item" + (String(route.id) === active ? " active" : "");
+
+    const left = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "route-item-name";
+    name.textContent = route.name;
+    const meta = document.createElement("div");
+    meta.className = "route-item-meta";
+    const { paceMs } = historyPace();
+    const miles = route.meters / MI;
+    meta.textContent = `${miles.toFixed(2)} mi · about ${fmtDuration(miles * paceMs)}`;
+    left.append(name, meta);
+    left.style.cursor = "pointer";
+    left.addEventListener("click", () => showSavedRoute(route));
+
+    const actions = document.createElement("div");
+    actions.className = "route-item-actions";
+    const use = document.createElement("button");
+    const isActive = String(route.id) === active;
+    use.textContent = isActive ? "In use" : "Use";
+    if (isActive) use.classList.add("on");
+    use.addEventListener("click", () => setActiveRoute(isActive ? null : route.id));
+    const del = document.createElement("button");
+    del.textContent = "Delete";
+    del.className = "danger";
+    del.addEventListener("click", () => {
+      if (!confirm(`Delete "${route.name}"?`)) return;
+      saveRoutes(loadRoutes().filter((x) => x.id !== route.id));
+      if (String(route.id) === active) setActiveRoute(null);
+      renderRouteList();
+    });
+    actions.append(use, del);
+
+    el.append(left, actions);
+    list.appendChild(el);
+  }
+}
+
+function showSavedRoute(route) {
+  const map = state.routeMap;
+  if (state.routeLine) state.routeLine.remove();
+  (state.routeMarkers || []).forEach((m) => m.remove());
+  state.routeMarkers = [];
+  state.route = { stops: [], latlngs: [], legs: [], meters: 0 };
+  state.routeLine = L.polyline(route.latlngs, { color: "#2ee59d", weight: 5, opacity: 0.9 }).addTo(map);
+  map.fitBounds(state.routeLine.getBounds(), { padding: [40, 40] });
+  $("#rt-dist").textContent = (route.meters / MI).toFixed(2);
+  const { paceMs } = historyPace();
+  $("#rt-time").textContent = fmtDuration((route.meters / MI) * paceMs);
+  $("#rt-pace").textContent = fmtPaceMs(paceMs);
+  routeStatus(`showing "${route.name}" — Clear to start a new one`);
+}
+
+async function openRoutePlanner() {
+  show("route");
+  if (!state.routeMap) {
+    state.routeMap = L.map("route-map", { zoomControl: false }).setView([37.7749, -122.4194], 15);
+    L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(state.routeMap);
+    state.routeMap.on("click", (e) => addRoutePoint(e.latlng.lat, e.latlng.lng));
+    navigator.geolocation.getCurrentPosition(
+      (pos) => state.routeMap.setView([pos.coords.latitude, pos.coords.longitude], 16),
+      () => {},
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+    );
+  }
+  clearRoute();
+  renderRouteList();
+  setTimeout(() => state.routeMap.invalidateSize(), 50);
 }
 
 /* ---------- nearby segments (Strava) ----------
@@ -1573,6 +1939,12 @@ $("#btn-privacy").addEventListener("click", () => {
   const i = PRIVACY_STEPS.indexOf(state.prefs.privacyM);
   savePrefs({ ...state.prefs, privacyM: PRIVACY_STEPS[(i + 1) % PRIVACY_STEPS.length] });
 });
+$("#btn-route").addEventListener("click", openRoutePlanner);
+$("#btn-route-back").addEventListener("click", () => { refreshHome(); show("home"); });
+$("#btn-route-undo").addEventListener("click", undoRoutePoint);
+$("#btn-route-loop").addEventListener("click", loopRouteBack);
+$("#btn-route-clear").addEventListener("click", clearRoute);
+$("#btn-route-save").addEventListener("click", saveCurrentRoute);
 $("#btn-segments").addEventListener("click", openSegments);
 $("#btn-seg-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-strava-connect").addEventListener("click", connectStrava);

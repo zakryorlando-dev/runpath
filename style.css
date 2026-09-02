@@ -457,3 +457,47 @@ html, body {
   line-height: 1.5;
   margin: 8px 2px 18px;
 }
+
+
+/* ---------- route planner ---------- */
+
+#screen-route { position: relative; }
+
+.route-panel {
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding: 14px 20px calc(var(--safe-bottom) + 14px);
+  max-height: 56vh;
+  overflow-y: auto;
+  z-index: 1000;
+}
+.route-panel .stats-row { margin-bottom: 6px; }
+.route-panel .detail-actions-row { margin-top: 12px; }
+#rt-basis { font-size: 12px; margin-bottom: 4px; }
+
+.route-list { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.route-item {
+  background: #12171f;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.route-item.active { border-color: var(--accent); }
+.route-item-name { font-size: 15px; font-weight: 700; }
+.route-item-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.route-item-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.route-item-actions button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.route-item-actions button.on { border-color: var(--accent); color: var(--accent); }
+.route-item-actions button.danger { color: var(--danger); }
