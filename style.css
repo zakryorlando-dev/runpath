@@ -1,4 +1,16 @@
-* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+/* Nothing here is text to copy, and on iOS a long press would otherwise start
+   selecting words and pop the callout menu - which fights the hold gestures. */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+button { touch-action: manipulation; }   /* no double-tap zoom on the controls */
 
 :root {
   --bg: #0d1117;
