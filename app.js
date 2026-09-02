@@ -31,7 +31,7 @@ const state = {
   routeLine: null,
   routeMarkers: [],
   routeBusy: false,
-  route: { stops: [], latlngs: [], legs: [], meters: 0 },
+  route: { stops: [], legs: [], selected: null },
   plannedLine: null,
   currentRun: null,   // run object shown on detail screen
   wakeLock: null,
@@ -1249,7 +1249,11 @@ async function snapCurrentRun() {
    Tap points on the map and the line between them follows real streets and
    paths, using the same OpenStreetMap network the snapping uses. Distance
    comes from the network, and the time estimate comes from how fast you
-   actually run rather than from a guess. */
+   actually run rather than from a guess.
+
+   A route is kept as its stops plus one leg per gap, each leg holding its own
+   geometry. That way any stop can be pulled out and the two legs either side
+   of it replaced by a single new one, instead of only ever undoing the end. */
 
 const ROUTES_KEY = "runpath.routes";
 const ACTIVE_ROUTE_KEY = "runpath.activeRoute";
@@ -1368,16 +1372,57 @@ function nodeLatLng(graph, frame, n) {
   return [graph.ys[n] / frame.my, graph.xs[n] / frame.mx];
 }
 
-function renderRouteStats() {
+// one leg between two stops, geometry included
+function buildLeg(fromNode, toNode) {
+  const leg = routeBetween(state.routeGraph, fromNode, toNode);
+  if (!leg) return null;
+  return {
+    meters: leg.meters,
+    latlngs: leg.path.map((n) => nodeLatLng(state.routeGraph, state.routeFrame, n)),
+  };
+}
+
+// the whole line, stitched from the legs (each leg repeats the shared stop)
+function routeLatLngs() {
   const r = state.route;
-  const miles = r.meters / MI;
+  if (!r.legs.length) {
+    return r.stops.length
+      ? [nodeLatLng(state.routeGraph, state.routeFrame, r.stops[0])]
+      : [];
+  }
+  return r.legs.flatMap((leg, i) => (i === 0 ? leg.latlngs : leg.latlngs.slice(1)));
+}
+
+function routeMeters() {
+  return state.route.legs.reduce((sum, leg) => sum + leg.meters, 0);
+}
+
+function renderRouteStats() {
+  const miles = routeMeters() / MI;
   $("#rt-dist").textContent = miles.toFixed(2);
   const { paceMs, runs } = historyPace();
-  $("#rt-pace").textContent = `${fmtPaceMs(paceMs)}`;
+  $("#rt-pace").textContent = fmtPaceMs(paceMs);
   $("#rt-time").textContent = miles > 0 ? fmtDuration(miles * paceMs) : "--";
   $("#rt-basis").textContent = runs
     ? `Estimated from your last ${runs} run${runs === 1 ? "" : "s"} (median pace).`
     : "No run history yet, so this assumes 12:00 /mi.";
+}
+
+function renderSelection() {
+  const sel = state.route.selected;
+  const row = $("#route-selection");
+  if (sel == null) { row.hidden = true; return; }
+  row.hidden = false;
+  $("#route-sel-label").textContent =
+    `Point ${sel + 1} of ${state.route.stops.length} selected`;
+}
+
+function selectStop(i) {
+  state.route.selected = state.route.selected === i ? null : i;
+  drawRoute();
+  routeStatus(state.route.selected == null
+    ? "tap to extend, or save it"
+    : "delete this point and the route closes over it");
 }
 
 function drawRoute() {
@@ -1386,21 +1431,25 @@ function drawRoute() {
   (state.routeMarkers || []).forEach((m) => m.remove());
   state.routeMarkers = [];
 
-  state.routeLine = L.polyline(state.route.latlngs, {
+  state.routeLine = L.polyline(routeLatLngs(), {
     color: "#2ee59d", weight: 5, opacity: 0.9,
   }).addTo(map);
 
   state.route.stops.forEach((s, i) => {
+    const picked = state.route.selected === i;
     const m = L.circleMarker(nodeLatLng(state.routeGraph, state.routeFrame, s), {
-      radius: i === 0 ? 8 : 6,
-      color: "#fff",
-      weight: 2,
-      fillColor: i === 0 ? "#2ee59d" : "#1db07a",
+      radius: picked ? 10 : i === 0 ? 8 : 6,
+      color: picked ? "#f85149" : "#fff",
+      weight: picked ? 3 : 2,
+      fillColor: picked ? "#fff" : i === 0 ? "#2ee59d" : "#1db07a",
       fillOpacity: 1,
     }).addTo(map);
+    m.on("click", (e) => { L.DomEvent.stopPropagation(e); selectStop(i); });
     state.routeMarkers.push(m);
   });
+
   renderRouteStats();
+  renderSelection();
 }
 
 async function ensureRouteGraph(lat, lng) {
@@ -1430,19 +1479,16 @@ async function addRoutePoint(lat, lng) {
     if (node < 0) { routeStatus("nothing runnable that close — try nearer a street or path"); return; }
 
     const r = state.route;
+    r.selected = null;
     if (!r.stops.length) {
       r.stops.push(node);
-      r.latlngs.push(nodeLatLng(state.routeGraph, state.routeFrame, node));
       routeStatus("tap again to extend the route");
     } else {
-      const leg = routeBetween(state.routeGraph, r.stops[r.stops.length - 1], node);
+      const leg = buildLeg(r.stops[r.stops.length - 1], node);
       if (!leg) { routeStatus("no run-able way through to there"); return; }
-      const pts = leg.path.map((n) => nodeLatLng(state.routeGraph, state.routeFrame, n));
-      r.latlngs.push(...pts.slice(1));
-      r.legs.push({ points: pts.length - 1, meters: leg.meters });
+      r.legs.push(leg);
       r.stops.push(node);
-      r.meters += leg.meters;
-      routeStatus("tap to extend, or save it");
+      routeStatus("tap to extend, or tap a point to edit it");
     }
     drawRoute();
   } catch (err) {
@@ -1452,56 +1498,81 @@ async function addRoutePoint(lat, lng) {
   }
 }
 
+/* Pull one stop out and close the gap: the legs either side of it are replaced
+   by a single leg routed between its neighbours. */
+function deleteSelectedStop() {
+  const r = state.route;
+  const i = r.selected;
+  if (i == null) return;
+
+  if (r.stops.length === 1) { clearRoute(); return; }
+
+  if (i === 0) {
+    r.stops.shift();
+    r.legs.shift();
+  } else if (i === r.stops.length - 1) {
+    r.stops.pop();
+    r.legs.pop();
+  } else {
+    const leg = buildLeg(r.stops[i - 1], r.stops[i + 1]);
+    if (!leg) { routeStatus("no way to join those two points directly"); return; }
+    r.stops.splice(i, 1);
+    r.legs.splice(i - 1, 2, leg);
+  }
+
+  r.selected = null;
+  drawRoute();
+  routeStatus("point removed");
+}
+
 function undoRoutePoint() {
   const r = state.route;
+  r.selected = null;
   if (r.stops.length < 2) { clearRoute(); return; }
-  const leg = r.legs.pop();
-  r.latlngs.splice(r.latlngs.length - leg.points);
   r.stops.pop();
-  r.meters -= leg.meters;
+  r.legs.pop();
   drawRoute();
   routeStatus("tap to extend, or save it");
 }
 
 function clearRoute() {
-  state.route = { stops: [], latlngs: [], legs: [], meters: 0 };
+  state.route = { stops: [], legs: [], selected: null };
   if (state.routeLine) { state.routeLine.remove(); state.routeLine = null; }
   (state.routeMarkers || []).forEach((m) => m.remove());
   state.routeMarkers = [];
   renderRouteStats();
+  renderSelection();
   routeStatus("Tap the map to drop a start point");
 }
 
 // send the route home the way it came, which is how most training loops work
-async function loopRouteBack() {
+function loopRouteBack() {
   const r = state.route;
   if (r.stops.length < 2) return;
   const back = [...r.stops].reverse().slice(1);
   for (const node of back) {
-    const leg = routeBetween(state.routeGraph, r.stops[r.stops.length - 1], node);
+    const leg = buildLeg(r.stops[r.stops.length - 1], node);
     if (!leg) break;
-    const pts = leg.path.map((n) => nodeLatLng(state.routeGraph, state.routeFrame, n));
-    r.latlngs.push(...pts.slice(1));
-    r.legs.push({ points: pts.length - 1, meters: leg.meters });
+    r.legs.push(leg);
     r.stops.push(node);
-    r.meters += leg.meters;
   }
+  r.selected = null;
   drawRoute();
   routeStatus("looped back to the start");
 }
 
 function saveCurrentRoute() {
-  const r = state.route;
-  if (r.latlngs.length < 2) { routeStatus("nothing to save yet"); return; }
-  const miles = (r.meters / MI).toFixed(2);
+  const latlngs = routeLatLngs();
+  if (latlngs.length < 2) { routeStatus("nothing to save yet"); return; }
+  const miles = (routeMeters() / MI).toFixed(2);
   const name = prompt("Name this route", `${miles} mi route`);
   if (name === null) return;
   const routes = loadRoutes();
   routes.unshift({
     id: Date.now(),
     name: name.trim() || `${miles} mi route`,
-    meters: Math.round(r.meters),
-    latlngs: r.latlngs,
+    meters: Math.round(routeMeters()),
+    latlngs,
   });
   saveRoutes(routes);
   renderRouteList();
@@ -1558,15 +1629,13 @@ function renderRouteList() {
 
 function showSavedRoute(route) {
   const map = state.routeMap;
-  if (state.routeLine) state.routeLine.remove();
-  (state.routeMarkers || []).forEach((m) => m.remove());
-  state.routeMarkers = [];
-  state.route = { stops: [], latlngs: [], legs: [], meters: 0 };
+  clearRoute();
   state.routeLine = L.polyline(route.latlngs, { color: "#2ee59d", weight: 5, opacity: 0.9 }).addTo(map);
   map.fitBounds(state.routeLine.getBounds(), { padding: [40, 40] });
-  $("#rt-dist").textContent = (route.meters / MI).toFixed(2);
+  const miles = route.meters / MI;
   const { paceMs } = historyPace();
-  $("#rt-time").textContent = fmtDuration((route.meters / MI) * paceMs);
+  $("#rt-dist").textContent = miles.toFixed(2);
+  $("#rt-time").textContent = fmtDuration(miles * paceMs);
   $("#rt-pace").textContent = fmtPaceMs(paceMs);
   routeStatus(`showing "${route.name}" — Clear to start a new one`);
 }
@@ -1942,6 +2011,8 @@ $("#btn-privacy").addEventListener("click", () => {
 $("#btn-route").addEventListener("click", openRoutePlanner);
 $("#btn-route-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-route-undo").addEventListener("click", undoRoutePoint);
+$("#btn-route-delpoint").addEventListener("click", deleteSelectedStop);
+$("#btn-route-deselect").addEventListener("click", () => { state.route.selected = null; drawRoute(); });
 $("#btn-route-loop").addEventListener("click", loopRouteBack);
 $("#btn-route-clear").addEventListener("click", clearRoute);
 $("#btn-route-save").addEventListener("click", saveCurrentRoute);

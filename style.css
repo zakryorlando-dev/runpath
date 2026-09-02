@@ -501,3 +501,18 @@ html, body {
 }
 .route-item-actions button.on { border-color: var(--accent); color: var(--accent); }
 .route-item-actions button.danger { color: var(--danger); }
+
+
+.route-selection {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: #12171f;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+.route-selection[hidden] { display: none; }
+.route-sel-actions { display: flex; gap: 8px; flex-shrink: 0; }
