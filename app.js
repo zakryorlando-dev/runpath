@@ -42,6 +42,7 @@ const state = {
   dimEnabled: true,
   prefs: { autoSnap: true, privacyM: 200 },
   activityType: "run",
+  syncing: false,
   plan: null,          // training plan, loaded from plan.json
 };
 
@@ -2172,14 +2173,19 @@ function renderSync(user) {
 async function runSync({ quiet = false } = {}) {
   const api = syncApi();
   if (!api || !api.user) return;
+  if (state.syncing) return;            // sign-in fires one of these already
+  state.syncing = true;
   if (!quiet) syncState("Syncing…", "busy");
   try {
-    const r = await api.syncNow({ readLocal: syncReadLocal, writeLocal: syncWriteLocal });
+    await api.syncNow({ readLocal: syncReadLocal, writeLocal: syncWriteLocal });
     refreshHome();
-    const moved = r.pulled.runs + r.pulled.routes + r.pushed.runs + r.pushed.routes;
-    syncState(moved ? `+${r.pulled.runs + r.pulled.routes} in, ${r.pushed.runs + r.pushed.routes} out` : "Up to date");
+    // say what's actually stored, which is more use than "done"
+    const runs = loadRuns().length, routes = loadRoutes().length;
+    syncState(`${runs} run${runs === 1 ? "" : "s"} · ${routes} route${routes === 1 ? "" : "s"}`);
   } catch (err) {
     syncState(err && err.code === "permission-denied" ? "Rules not published" : "Sync failed", "bad");
+  } finally {
+    state.syncing = false;
   }
 }
 
