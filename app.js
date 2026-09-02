@@ -46,6 +46,8 @@ const state = {
   plan: null,          // the runner's training plan, if they have one
   profile: null,
   obStep: 0,
+  splashDone: false,
+  splashTimer: null,
   obChoices: {},
 };
 
@@ -158,6 +160,29 @@ function renderHistory() {
     el.addEventListener("click", () => showDetail(run));
     list.appendChild(el);
   }
+}
+
+/* ---------- splash ----------
+   Shown at a cold start, ahead of the terms on a first visit. Short, skippable
+   by tapping, and skipped outright for anyone who has asked for less motion. */
+
+const SPLASH_MS = 2100;
+
+function afterSplash() {
+  if (state.splashDone) return;
+  state.splashDone = true;
+  clearTimeout(state.splashTimer);
+  if (!termsAccepted()) showTerms();
+  else openAfterTerms();
+}
+
+function runSplash() {
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  $("#tabbar").hidden = true;
+  $("#start-dock").hidden = true;
+  show("splash");
+  state.splashTimer = setTimeout(afterSplash, still ? 700 : SPLASH_MS);
+  document.querySelector("#screen-splash").addEventListener("click", afterSplash, { once: true });
 }
 
 /* ---------- terms ----------
@@ -2867,8 +2892,7 @@ setDimPref(loadDimPref());
 stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
 migrateRuns();
 state.profile = loadProfile();
-if (!termsAccepted()) showTerms();
-else openAfterTerms();
+runSplash();
 loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
 
 if ("serviceWorker" in navigator &&

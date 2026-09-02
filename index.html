@@ -35,6 +35,23 @@
 </head>
 <body>
 
+  <!-- SPLASH - a route drawing itself, then out of the way -->
+  <section id="screen-splash" class="screen">
+    <div class="splash">
+      <svg class="splash-route" viewBox="0 0 220 120" aria-hidden="true">
+        <path class="route-line"
+              d="M14 104 C 44 40, 74 118, 106 62 S 168 16, 206 40"
+              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle class="route-start" cx="14" cy="104" r="6"/>
+        <circle class="route-end" cx="206" cy="40" r="7"/>
+      </svg>
+
+      <h1 class="splash-title">RunPath<span class="dot">.</span></h1>
+      <p class="splash-tagline">Track it. Map it. Share it.</p>
+      <p class="splash-hint">tap to continue</p>
+    </div>
+  </section>
+
   <!-- TERMS - nothing else opens until this is accepted -->
   <section id="screen-terms" class="screen">
     <div class="onboard">
