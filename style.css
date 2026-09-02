@@ -887,6 +887,10 @@ html, body {
 .playing .route-line {
   animation: draw-route var(--sp-line) cubic-bezier(0.4, 0.03, 0.4, 1) var(--sp-line-delay) forwards;
 }
+/* Once it has been drawn it stays drawn. The animation's own fill should do
+   this, but it is the one thing on screen that must not blink out, so it does
+   not rest on that alone. */
+.splash-stage.drew .route-line { stroke-dashoffset: 0; }
 .route-start, .route-end { fill: var(--accent); opacity: 0; }
 .playing .route-start { animation: drop-bounce var(--sp-dot) cubic-bezier(0.3, 0, 0.5, 1) forwards; }
 .route-end {

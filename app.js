@@ -242,14 +242,13 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "14:40";           // shown on the splash while this is in doubt
+const BUILD = "14:52";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 450;     // a breath of blank before the sequence starts,
                                  // tripled to see what it does to the phone's reveal
 const INTRO_REPLAY_BLANK_MS = 900;   // a beat of blank before a restart, so a
                                      // restart reads as deliberate. Tripled to match
-const INTRO_WATCH_MS = 45000;    // long enough to catch a late reveal: a recording
-                                 // caught one landing thirty-five seconds in. Past this
-                                 // point a rewind would cost more than it saves
+const INTRO_WATCH_MS = 3000;     // only the opening. A restart later than this
+                                 // reads as the picture breaking, not healing
 const INTRO_GAP_MS = 600;        // a pause this long means frames weren't being seen.
                                  // Generous, so a stutter on a tired phone is not
                                  // mistaken for a reveal
@@ -257,12 +256,22 @@ const INTRO_GAP_MS = 600;        // a pause this long means frames weren't being
 function startIntro(stage) {
   let restarts = 0;
 
+  const lineEndsAt = () => {
+    const cs = getComputedStyle(document.documentElement);
+    const ms = (name) => parseFloat(cs.getPropertyValue(name)) || 0;
+    return ms("--sp-line-delay") + ms("--sp-line");
+  };
+
+  let pin = null;
+
   const play = (blankFirst = 0) => {
-    stage.classList.remove("playing");
+    stage.classList.remove("playing", "drew");
+    clearTimeout(pin);
     void stage.offsetWidth;                    // replay from the top
     const go = () => {
       if (state.splashDone) return;
       stage.classList.add("playing");
+      pin = setTimeout(() => stage.classList.add("drew"), lineEndsAt());
       watch();
     };
     if (blankFirst) setTimeout(go, blankFirst);
