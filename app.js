@@ -672,17 +672,19 @@ function stopRun() {
   // put it on the street without being asked; stays raw if there's no signal
   setSnapUI("Snapping to street...", true);
   snapRun(run, { silent: true }).then((ok) => {
-    if (state.currentRun === run) showDetail(run);
+    // a new run may have started while this was in flight; don't steal the screen
+    if (!state.tracking && state.currentRun === run) showDetail(run);
     if (ok) refreshHome();
   });
 }
 
 /* ---------- hold to finish ----------
-   Holding for four seconds is the confirmation, so there's no dialog to dismiss
-   with cold hands. Releasing early cancels; a quick tap says so rather than
-   appearing to do nothing. */
+   Holding for three seconds is the confirmation, so there's no dialog to
+   dismiss with cold hands. Releasing early cancels; a quick tap says so rather
+   than appearing to do nothing. Waking from the dim screen is held too, so a
+   jostled phone can't light itself back up. */
 
-const HOLD_MS = 4000;
+const HOLD_MS = 3000;
 
 function holdToFire(btn, onFire) {
   let timer = null, started = 0, hintTimer = null;
@@ -1253,9 +1255,8 @@ $("#gpx-input").addEventListener("change", (e) => {
 });
 $("#btn-pause").addEventListener("click", togglePause);
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
-$("#btn-wake").addEventListener("click", (e) => { e.stopPropagation(); hideDim(); armDim(); });
+holdToFire($("#btn-wake"), () => { hideDim(); armDim(); });
 holdToFire($("#btn-stop"), stopRun);
-holdToFire($("#btn-dim-finish"), stopRun);
 $("#btn-back").addEventListener("click", () => { refreshHome(); show("home"); });
 $("#btn-share").addEventListener("click", shareRun);
 $("#btn-snap").addEventListener("click", snapCurrentRun);

@@ -183,22 +183,24 @@ html, body {
 .dim-time.long { font-size: 17vw; }
 .dim-dist { font-size: 9vw; font-weight: 700; color: #174a36; }
 
-/* deliberately small and off in the corner: a stray touch shouldn't undim */
-.dim-wake {
+/* small, cornered, and held rather than tapped: nothing about a pocket or a
+   swinging arm should be able to light the screen back up */
+.dim-overlay .dim-wake {
   position: absolute;
   right: 16px;
   bottom: calc(var(--safe-bottom) + 16px);
-  width: 92px;
+  width: 126px;
   height: 44px;
   border-radius: 22px;
   background: transparent;
   border: 1px solid #14301f;
   color: #1f6f4f;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
   text-transform: uppercase;
 }
+.dim-overlay .dim-wake.btn-hold::before { background: rgba(46, 229, 157, 0.22); }
 
 
 /* ---------- progress: week totals, 12-week chart, month calendar ---------- */
@@ -335,20 +337,3 @@ html, body {
   transition: transform var(--hold-ms, 4000ms) linear;
 }
 
-/* dim screen: finishing lives opposite Wake, and is just as deliberate */
-.dim-finish {
-  position: absolute;
-  left: 16px;
-  bottom: calc(var(--safe-bottom) + 16px);
-  width: 122px;
-  height: 44px;
-  border-radius: 22px;
-  background: transparent;
-  border: 1px solid #3a1613;
-  color: #7a2a24;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-.dim-finish.btn-hold::before { background: rgba(248, 81, 73, 0.32); }
