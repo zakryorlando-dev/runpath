@@ -30,6 +30,12 @@
   <link rel="apple-touch-icon" href="icon-180.png">
   <link rel="icon" type="image/png" href="icon-192.png">
 
+  <!-- Inline, so the page is never white: a stylesheet is fetched, and until it
+       arrives the browser paints its own default background. -->
+  <style>
+    html, body { margin: 0; background: #0d1117; color: #e6edf3; }
+  </style>
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="style.css">
 </head>

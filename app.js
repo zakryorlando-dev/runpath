@@ -190,9 +190,9 @@ function renderSplashGreeting() {
     title.appendChild(dot("!"));
     tagline.textContent = "Ready when you are.";
   } else {
-    title.textContent = "RunPath";
-    title.appendChild(dot("."));
-    tagline.textContent = "Track it. Map it. Share it.";
+    title.textContent = "Greetings";
+    title.appendChild(dot("!"));
+    tagline.textContent = "Let's get started.";
   }
 }
 
@@ -242,13 +242,17 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "11:56";           // shown on the splash while this is in doubt
+const BUILD = "12:10";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 150;     // a breath of blank; the frame-gap watch
                                  // below is what actually handles a late reveal
 const INTRO_REPLAY_BLANK_MS = 300;   // a beat of blank before a restart, so a
                                      // restart reads as deliberate
-const INTRO_WATCH_MS = 3200;     // how long to keep watching for the reveal
-const INTRO_GAP_MS = 220;        // a pause this long means frames weren't being seen
+const INTRO_WATCH_MS = 18000;    // the whole sequence: a recording showed the
+                                 // reveal landing seven seconds in, long after a
+                                 // short watch had given up
+const INTRO_GAP_MS = 600;        // a pause this long means frames weren't being seen.
+                                 // Generous, because the watch now runs the whole
+                                 // sequence and a stutter must not restart it mid-view
 
 function startIntro(stage) {
   let restarts = 0;
