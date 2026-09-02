@@ -43,7 +43,10 @@ const state = {
   prefs: { autoSnap: true, privacyM: 200 },
   activityType: "run",
   syncing: false,
-  plan: null,          // training plan, loaded from plan.json
+  plan: null,          // the runner's training plan, if they have one
+  profile: null,
+  obStep: 0,
+  obChoices: {},
 };
 
 const now = () => (state.demo ? state.simNow : Date.now());
@@ -157,11 +160,261 @@ function renderHistory() {
   }
 }
 
+/* ---------- welcome ----------
+   Shown once, on a phone with no runs and no plan. Every step can be skipped,
+   including the account, because the app genuinely doesn't need one. */
+
+const ONBOARDED_KEY = "runpath.onboarded";
+
+function onboarded() {
+  try { return !!localStorage.getItem(ONBOARDED_KEY); } catch { return true; }
+}
+
+function finishOnboarding() {
+  try { localStorage.setItem(ONBOARDED_KEY, "1"); } catch {}
+  showTab("home");
+}
+
+function obShow(step) {
+  state.obStep = step;
+  document.querySelectorAll(".ob-step").forEach((el) => {
+    el.hidden = Number(el.dataset.step) !== step;
+  });
+  document.querySelector("#screen-welcome").scrollTop = 0;
+}
+
+function obPick(groupId, value) {
+  document.querySelectorAll(`#${groupId} .chip`).forEach((c) =>
+    c.classList.toggle("on", c.dataset.value === value));
+  state.obChoices[groupId] = value;
+}
+
+function obMessage(text, ok) {
+  const el = $("#ob-account-msg");
+  el.hidden = !text;
+  el.textContent = text || "";
+  el.classList.toggle("ok", !!ok);
+}
+
+async function obAccount(creating) {
+  const api = syncApi();
+  if (!api) { obMessage("Sync isn't loaded — you can set this up later in Settings."); return; }
+  const email = $("#ob-email").value.trim();
+  const password = $("#ob-password").value;
+  if (!email || !password) { obMessage("Email and password are both needed."); return; }
+  try {
+    if (creating) await api.signUp(email, password);
+    else await api.signIn(email, password);
+    $("#ob-password").value = "";
+    obMessage("Signed in.", true);
+    setTimeout(() => obShow(2), 500);
+  } catch (err) {
+    obMessage(err.message || String(err));
+  }
+}
+
+function obSaveProfile() {
+  const name = $("#ob-name").value.trim();
+  const height = Number($("#ob-height").value) || null;
+  const weight = Number($("#ob-weight").value) || null;
+  const sex = state.obChoices["ob-sex"] || null;
+  if (name || height || weight || sex) {
+    saveProfile({ name, sex, heightIn: height, weightLb: weight });
+  }
+}
+
+function obBuildPlan() {
+  const goal = state.obChoices["ob-goal"];
+  const level = state.obChoices["ob-level"] || "new";
+  const days = Number(state.obChoices["ob-days"]) || 3;
+  if (!goal) { alert("Pick what you're training for first, or skip this step."); return; }
+
+  const raceValue = $("#ob-race").value;
+  let weeks = null, raceDate = null;
+  if (raceValue) {
+    raceDate = raceValue;
+    const start = startOfWeek(new Date());
+    const race = new Date(`${raceValue}T00:00:00`);
+    weeks = Math.round((race - start) / (7 * 86400000)) + 1;
+    if (weeks < 4) {
+      alert("That race is less than four weeks away — build a plan without a date, or pick a later one.");
+      return;
+    }
+  }
+
+  const plan = buildPlan({ goal, level, daysPerWeek: days, weeks, raceDate });
+  savePlan(plan);
+
+  const peak = Math.max(...plan.weeks.map((w) => w.longRunMinutes));
+  $("#ob-done-title").textContent = "Your plan is ready";
+  $("#ob-done-text").textContent =
+    `${plan.weeks.length} weeks, ${days} runs a week, building to a ${peak}-minute long run. ` +
+    (plan.shortOnTime
+      ? "That's as far as this many weeks safely allows, so treat the distance as a stretch rather than a promise. "
+      : "") +
+    `It's on the Home tab, and you can change or clear it in Settings.`;
+  obShow(4);
+}
+
+function startOnboarding() {
+  state.obChoices = {};
+  obShow(0);
+  $("#tabbar").hidden = true;
+  $("#start-dock").hidden = true;
+  show("welcome");
+}
+
+/* ---------- profile and plan ----------
+   A plan belongs to the runner, not to the app, so it lives in their own
+   storage rather than being shipped with the code. The bundled plan.json is
+   only adopted once, and only on a device that already has runs on it - that
+   is, the phone this was originally built for. Anyone installing fresh starts
+   with no plan and is offered one. */
+
+const PROFILE_KEY = "runpath.profile";
+const PLAN_KEY = "runpath.plan";
+const PLAN_INIT_KEY = "runpath.planInit";
+
+function loadProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || null; }
+  catch { return null; }
+}
+
+function saveProfile(profile) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {}
+  state.profile = profile;
+  syncPush("meta", { id: "profile", ...profile });
+}
+
+function savePlan(plan) {
+  try {
+    if (plan) localStorage.setItem(PLAN_KEY, JSON.stringify(plan));
+    else localStorage.removeItem(PLAN_KEY);
+  } catch {}
+  state.plan = plan;
+  if (plan) syncPush("meta", { id: "plan", ...plan });
+}
+
+/* ---------- building a plan ----------
+   Shaped like a sensible beginner plan: a run/walk foundation if they're
+   starting cold, a base of continuous running, a build with a cutback every
+   fourth week so the load steps rather than ramps, and a taper. Everything is
+   in minutes, because time is what a new runner can actually hold to - miles
+   arrive on their own. */
+
+const GOALS = {
+  fitness: { label: "General fitness", peakLong: 50,  weeks: 12, miles: null },
+  "5k":    { label: "5K",              peakLong: 45,  weeks: 8,  miles: 3.1 },
+  "10k":   { label: "10K",             peakLong: 70,  weeks: 10, miles: 6.2 },
+  half:    { label: "Half marathon",   peakLong: 105, weeks: 16, miles: 13.1 },
+  full:    { label: "Marathon",        peakLong: 180, weeks: 20, miles: 26.2 },
+};
+
+const LEVELS = {
+  new:     { label: "New to running",        startLong: 20, foundation: 0.3 },
+  some:    { label: "Can run 20 minutes",    startLong: 30, foundation: 0.1 },
+  regular: { label: "Running regularly",     startLong: 40, foundation: 0 },
+};
+
+const RUN_DAYS_BY_COUNT = { 3: [2, 4, 6], 4: [2, 4, 6, 0], 5: [1, 2, 4, 6, 0] };
+
+function buildPlan({ goal, level, daysPerWeek, weeks, startMonday, raceDate }) {
+  const g = GOALS[goal] || GOALS.fitness;
+  const lv = LEVELS[level] || LEVELS.new;
+  const total = Math.max(4, Math.min(24, weeks || g.weeks));
+  const days = RUN_DAYS_BY_COUNT[daysPerWeek] ? daysPerWeek : 3;
+  const runDays = RUN_DAYS_BY_COUNT[days];
+
+  const taper = total >= 12 ? 3 : total >= 8 ? 2 : 1;
+  const foundation = Math.min(total - taper - 1, Math.round(total * lv.foundation));
+  const build = total - taper - foundation;
+
+  /* Never grow the long run faster than about an eighth a week - the rule that
+     keeps beginners in one piece. If the goal's peak can't be reached at that
+     rate in the weeks available, the plan builds as far as it safely can and
+     says so, rather than quietly prescribing a jump that gets someone hurt. */
+  const GROWTH = 1.12;
+  const rampWeeks = foundation + build - 1;
+  const reachable = lv.startLong * Math.pow(GROWTH, rampWeeks);
+  const wanted = Math.max(lv.startLong + 10, g.peakLong);
+  const peak = Math.min(wanted, reachable);
+  const short = peak < wanted - 5;
+
+  // the rate that actually lands on the peak, never above the ceiling
+  const rate = rampWeeks > 0 ? Math.pow(peak / lv.startLong, 1 / rampWeeks) : 1;
+  const out = [];
+
+  for (let i = 0; i < total; i++) {
+    const week = { note: "" };
+    let long;
+
+    if (i < foundation + build) {
+      long = lv.startLong * Math.pow(rate, i);
+      if (i < foundation) {
+        week.note = `run/walk ${Math.min(4, i + 1)}:1`;
+      } else if (i === foundation && foundation > 0) {
+        week.note = "continuous running starts";
+      }
+      // every fourth week of the build, back off to let the work settle
+      const step = i - foundation;
+      if (i >= foundation && step > 0 && (step + 1) % 4 === 0 && i !== foundation + build - 1) {
+        long *= 0.7;
+        week.note = "cutback week";
+      } else if (i === foundation + build - 1) {
+        week.note = "peak long run";
+      }
+    } else {
+      const left = total - i;                           // 1 is the last week
+      long = peak * (left === 1 ? 0.25 : left === 2 ? 0.45 : 0.65);
+      week.note = left === 1 ? (g.miles ? "race week" : "easy final week") : "taper";
+    }
+
+    long = Math.max(15, Math.round(long / 5) * 5);
+
+    // the other days of the week, as fractions of the long one
+    const easyShares = [0.5, 0.55, 0.45, 0.4].slice(0, days - 1);
+    const easy = easyShares.map((s) => Math.max(15, Math.round((long * s) / 5) * 5));
+    const dayMinutes = [...easy, long];
+
+    week.longRunMinutes = long;
+    week.targetMinutes = dayMinutes.reduce((a, b) => a + b, 0);
+    week.dayMinutes = dayMinutes;
+    if (i === total - 1 && g.miles) week.longRunMiles = g.miles;
+    out.push(week);
+  }
+
+  return {
+    name: `${g.label} plan`,
+    goal,
+    startMonday: startMonday || isoDate(startOfWeek(new Date())),
+    raceDate: raceDate || null,
+    runDays,
+    shortOnTime: short,
+    weeks: out,
+  };
+}
+
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 /* ---------- training plan ----------
    plan.json ships with the app, so the schedule is on every device without
    anything to set up. Absent or malformed, the plan UI simply stays hidden. */
 
 async function loadPlan() {
+  try {
+    const stored = localStorage.getItem(PLAN_KEY);
+    if (stored) return JSON.parse(stored);
+  } catch {}
+
+  // one-time: adopt the bundled plan, but only on a phone that has already
+  // been used, so a fresh install doesn't inherit somebody else's training
+  let firstRun = true;
+  try { firstRun = !localStorage.getItem(PLAN_INIT_KEY); } catch {}
+  try { localStorage.setItem(PLAN_INIT_KEY, "1"); } catch {}
+  if (!firstRun || !loadRuns().length) return null;
+
   try {
     const res = await fetch("plan.json", { cache: "no-cache" });
     if (!res.ok) return null;
@@ -169,6 +422,7 @@ async function loadPlan() {
     if (!plan || !plan.startMonday || !Array.isArray(plan.weeks) || !plan.weeks.length) {
       return null;
     }
+    savePlan(plan);
     return plan;
   } catch {
     return null;
@@ -2140,6 +2394,28 @@ function syncReadLocal(kind) {
   return kind === "runs" ? loadRuns() : loadRoutes();
 }
 
+// the single documents: what this device has, and what to take from the cloud
+function syncReadMeta() {
+  return { profile: loadProfile(), plan: state.plan };
+}
+
+function syncWriteMeta(remote) {
+  const taken = [];
+  if (remote.profile && !loadProfile()) {
+    const { id, ...profile } = remote.profile;
+    saveProfile(profile);
+    taken.push("profile");
+  }
+  if (remote.plan && !state.plan) {
+    const { id, ...plan } = remote.plan;
+    if (Array.isArray(plan.weeks) && plan.weeks.length) {
+      savePlan(plan);
+      taken.push("plan");
+    }
+  }
+  return taken;
+}
+
 function syncWriteLocal(kind, records) {
   if (kind === "runs") {
     saveRuns(records.slice().sort((a, b) => b.date - a.date));
@@ -2177,7 +2453,11 @@ async function runSync({ quiet = false } = {}) {
   state.syncing = true;
   if (!quiet) syncState("Syncing…", "busy");
   try {
-    await api.syncNow({ readLocal: syncReadLocal, writeLocal: syncWriteLocal });
+    const r = await api.syncNow({
+      readLocal: syncReadLocal, writeLocal: syncWriteLocal,
+      readMeta: syncReadMeta, writeMeta: syncWriteMeta,
+    });
+    if (r.meta && r.meta.length) refreshHome();
     refreshHome();
     // say what's actually stored, which is more use than "done"
     const runs = loadRuns().length, routes = loadRoutes().length;
@@ -2482,6 +2762,26 @@ $("#btn-snap").addEventListener("click", snapCurrentRun);
 $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
+document.querySelectorAll(".ob-next").forEach((b) =>
+  b.addEventListener("click", () => {
+    if (state.obStep === 2) obSaveProfile();
+    obShow(state.obStep + 1);
+  }));
+document.querySelectorAll(".ob-skip").forEach((b) =>
+  b.addEventListener("click", () => {
+    if (b.dataset.skip === "all" || state.obStep >= 3) finishOnboarding();
+    else obShow(state.obStep + 1);
+  }));
+document.querySelectorAll(".ob-finish").forEach((b) =>
+  b.addEventListener("click", finishOnboarding));
+$("#ob-create").addEventListener("click", () => obAccount(true));
+$("#ob-signin").addEventListener("click", () => obAccount(false));
+$("#ob-build").addEventListener("click", obBuildPlan);
+for (const group of ["ob-sex", "ob-goal", "ob-level", "ob-days"]) {
+  document.querySelectorAll(`#${group} .chip`).forEach((c) =>
+    c.addEventListener("click", () => obPick(group, c.dataset.value)));
+}
+
 state.prefs = loadPrefs();
 setActivityType("run");
 renderPrefs();
@@ -2491,7 +2791,9 @@ setDimPref(loadDimPref());
 // coming back from Strava's approval page lands here with a code in the URL
 stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
 migrateRuns();
-showTab("home");
+state.profile = loadProfile();
+if (!onboarded() && !loadRuns().length) startOnboarding();
+else showTab("home");
 loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
 
 if ("serviceWorker" in navigator &&

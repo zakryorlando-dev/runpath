@@ -67,11 +67,11 @@ async function readTombstones() {
 
 /* One pass in both directions. Returns what moved, so the app can say
    something specific instead of a spinner and a shrug. */
-async function syncNow({ readLocal, writeLocal }) {
+async function syncNow({ readLocal, writeLocal, readMeta, writeMeta }) {
   if (!user) throw new Error("not signed in");
 
   const gone = await readTombstones();
-  const result = { pulled: {}, pushed: {}, removed: {} };
+  const result = { pulled: {}, pushed: {}, removed: {}, meta: [] };
 
   for (const kind of ["runs", "routes"]) {
     const local = readLocal(kind).filter((r) => !gone.has(String(r.id)));
@@ -98,6 +98,25 @@ async function syncNow({ readLocal, writeLocal }) {
     result.pushed[kind] = outgoing.length;
     result.removed[kind] = removedLocally;
   }
+
+  /* The profile and the plan are single documents rather than collections, and
+     they're what a second device most needs on the way in - signing in on a
+     new phone should bring the training plan with it, not just the history. */
+  if (readMeta && writeMeta) {
+    const remote = {};
+    const snap = await getDocs(collection(db, "users", user.uid, "meta"));
+    snap.forEach((d) => { const rec = unpack(d); if (rec) remote[d.id] = rec; });
+
+    result.meta = writeMeta(remote) || [];
+
+    const local = readMeta();
+    for (const [id, record] of Object.entries(local)) {
+      if (record && !remote[id]) {
+        await setDoc(doc(db, "users", user.uid, "meta", id), pack({ ...record, id }));
+      }
+    }
+  }
+
   return result;
 }
 

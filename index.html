@@ -35,6 +35,98 @@
 </head>
 <body>
 
+  <!-- WELCOME - first run only, and every step can be skipped -->
+  <section id="screen-welcome" class="screen">
+    <div class="onboard">
+
+      <div class="ob-step" data-step="0">
+        <h1 class="ob-title">RunPath<span class="dot">.</span></h1>
+        <p class="ob-lead">
+          Maps where you actually went, keeps a training plan honest, and works
+          with no signal. Two minutes of setup, or none at all &mdash; you can
+          skip straight to running.
+        </p>
+        <button class="btn-primary ob-next">Get started</button>
+        <button class="ob-skip" data-skip="all">Skip &mdash; just let me run</button>
+      </div>
+
+      <div class="ob-step" data-step="1" hidden>
+        <h2 class="ob-h2">Keep your runs safe</h2>
+        <p class="ob-lead">
+          An account puts your runs on any device you sign in from, and gets
+          them back if you lose the phone. Everything works without one &mdash;
+          your runs simply stay here.
+        </p>
+        <input id="ob-email" class="field" type="email" inputmode="email"
+               placeholder="Email" autocomplete="username">
+        <input id="ob-password" class="field" type="password"
+               placeholder="Password (at least 6 characters)" autocomplete="new-password">
+        <button id="ob-create" class="btn-primary">Create account</button>
+        <button id="ob-signin" class="btn-ghost wide">I already have one</button>
+        <p id="ob-account-msg" class="ob-msg" hidden></p>
+        <button class="ob-skip" data-skip="step">Skip for now</button>
+      </div>
+
+      <div class="ob-step" data-step="2" hidden>
+        <h2 class="ob-h2">About you</h2>
+        <p class="ob-lead">
+          Only used to make the numbers yours &mdash; weight lets a run show a
+          rough calorie figure. It stays on your phone.
+        </p>
+        <input id="ob-name" class="field" placeholder="Name" autocomplete="given-name">
+        <div class="ob-choices" id="ob-sex">
+          <button class="chip" data-value="female">Female</button>
+          <button class="chip" data-value="male">Male</button>
+          <button class="chip" data-value="unsaid">Rather not say</button>
+        </div>
+        <div class="ob-row">
+          <input id="ob-height" class="field" inputmode="numeric" placeholder="Height (in)">
+          <input id="ob-weight" class="field" inputmode="numeric" placeholder="Weight (lb)">
+        </div>
+        <button class="btn-primary ob-next">Continue</button>
+        <button class="ob-skip" data-skip="step">Skip</button>
+      </div>
+
+      <div class="ob-step" data-step="3" hidden>
+        <h2 class="ob-h2">What are you training for?</h2>
+        <div class="ob-choices stack" id="ob-goal">
+          <button class="chip" data-value="fitness">Just get fitter</button>
+          <button class="chip" data-value="5k">5K</button>
+          <button class="chip" data-value="10k">10K</button>
+          <button class="chip" data-value="half">Half marathon</button>
+          <button class="chip" data-value="full">Marathon</button>
+        </div>
+
+        <h3 class="ob-h3">Where are you starting from?</h3>
+        <div class="ob-choices stack" id="ob-level">
+          <button class="chip" data-value="new">New to running</button>
+          <button class="chip" data-value="some">Can run about 20 minutes</button>
+          <button class="chip" data-value="regular">Running regularly</button>
+        </div>
+
+        <h3 class="ob-h3">Days a week</h3>
+        <div class="ob-choices" id="ob-days">
+          <button class="chip" data-value="3">3</button>
+          <button class="chip" data-value="4">4</button>
+          <button class="chip" data-value="5">5</button>
+        </div>
+
+        <h3 class="ob-h3">Race day, if you have one</h3>
+        <input id="ob-race" class="field" type="date">
+
+        <button id="ob-build" class="btn-primary">Build my plan</button>
+        <button class="ob-skip" data-skip="step">Skip &mdash; no plan for now</button>
+      </div>
+
+      <div class="ob-step" data-step="4" hidden>
+        <h2 class="ob-h2" id="ob-done-title">You're set</h2>
+        <p class="ob-lead" id="ob-done-text"></p>
+        <button class="btn-primary ob-finish">Start using RunPath</button>
+      </div>
+
+    </div>
+  </section>
+
   <!-- HOME — this week, today, the plan, and something to run -->
   <section id="screen-home" class="screen tabbed active">
     <header class="home-header">
