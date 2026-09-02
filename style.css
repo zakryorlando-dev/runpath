@@ -861,10 +861,10 @@ html, body {
 
 /* The whole intro's clock, in one place. */
 :root {
-  --sp-dot:          1300ms;
+  --sp-dot:           600ms;
   --sp-line:         6400ms;
   --sp-line-delay:   1200ms;
-  --sp-end:          1400ms;
+  --sp-end:           600ms;
   --sp-end-delay:    7400ms;
   --sp-words:         700ms;
   --sp-title-delay:  8800ms;
