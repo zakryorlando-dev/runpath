@@ -166,7 +166,7 @@ function renderHistory() {
    Shown at a cold start, ahead of the terms on a first visit. Short, skippable
    by tapping, and skipped outright for anyone who has asked for less motion. */
 
-const SPLASH_MS = 2100;
+const SPLASH_MS = 3500;
 
 function afterSplash() {
   if (state.splashDone) return;
@@ -181,7 +181,7 @@ function runSplash() {
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
   show("splash");
-  state.splashTimer = setTimeout(afterSplash, still ? 700 : SPLASH_MS);
+  state.splashTimer = setTimeout(afterSplash, still ? 2000 : SPLASH_MS);
   document.querySelector("#screen-splash").addEventListener("click", afterSplash, { once: true });
 }
 
