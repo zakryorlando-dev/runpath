@@ -163,10 +163,12 @@ function renderHistory() {
 
 /* ---------- splash ----------
    Shown at a cold start, ahead of the terms on a first visit. It waits rather
-   than timing out: nobody is hurried past it, and nobody is stuck either -
-   a swipe up, a tap on the prompt, or a key all move on. */
+   than timing out, and the swipe is a drag rather than a trigger: the whole
+   screen follows the finger up and fades as it goes, springs back if the
+   gesture is abandoned, and carries on out if it isn't. */
 
-const SWIPE_MIN = 40;   // px of upward travel that counts as a swipe
+const SWIPE_COMMIT = 90;    // px of travel that counts as "yes"
+const SWIPE_FADE = 190;     // px over which the screen fades away entirely
 
 /* Somebody coming back gets their name rather than the sales pitch. The name
    is local so it's ready immediately; being signed in is confirmed a moment
@@ -179,28 +181,51 @@ function renderSplashGreeting() {
   const name = state.profile && state.profile.name;
   const signedIn = !!(syncApi() && syncApi().user);
   const returning = signedIn || !!name || !!loadRuns().length || onboarded();
+  const dot = (ch) => Object.assign(document.createElement("span"),
+    { className: "dot", textContent: ch });
 
-  if (returning && name) {
-    title.textContent = `Welcome back, ${name}`;
-    title.appendChild(Object.assign(document.createElement("span"),
-      { className: "dot", textContent: "!" }));
-    tagline.textContent = "Ready when you are.";
-  } else if (returning) {
-    title.textContent = "Welcome back";
-    title.appendChild(Object.assign(document.createElement("span"),
-      { className: "dot", textContent: "!" }));
+  if (returning) {
+    title.textContent = name ? `Welcome back, ${name}` : "Welcome back";
+    title.appendChild(dot("!"));
     tagline.textContent = "Ready when you are.";
   } else {
     title.textContent = "RunPath";
-    title.appendChild(Object.assign(document.createElement("span"),
-      { className: "dot", textContent: "." }));
+    title.appendChild(dot("."));
     tagline.textContent = "Track it. Map it. Share it.";
+  }
+}
+
+function splashStage() { return $("#splash-stage"); }
+
+function setStageDrag(px) {
+  const stage = splashStage();
+  const progress = Math.min(1, px / SWIPE_FADE);
+  stage.style.transform = `translateY(${-px}px)`;
+  stage.style.opacity = String(1 - progress * 0.9);
+}
+
+function releaseStage(commit) {
+  const stage = splashStage();
+  stage.classList.remove("settling", "leaving");
+  if (commit) {
+    stage.classList.add("leaving");
+    stage.style.transform = "translateY(-60vh)";
+    stage.style.opacity = "0";
+    setTimeout(afterSplash, 260);
+  } else {
+    stage.classList.add("settling");
+    stage.style.transform = "";
+    stage.style.opacity = "";
   }
 }
 
 function afterSplash() {
   if (state.splashDone) return;
   state.splashDone = true;
+  const stage = splashStage();
+  stage.classList.remove("settling", "leaving");
+  stage.style.transform = "";
+  stage.style.opacity = "";
   if (!termsAccepted()) showTerms();
   else openAfterTerms();
 }
@@ -212,25 +237,40 @@ function runSplash() {
   show("splash");
 
   const screen = document.querySelector("#screen-splash");
-  let startY = null;
+  const stage = splashStage();
+  stage.classList.remove("settling", "leaving");
+  stage.style.transform = "";
+  stage.style.opacity = "";
+
+  let startY = null, dragged = 0;
 
   screen.addEventListener("touchstart", (e) => {
     startY = e.touches[0].clientY;
+    dragged = 0;
+    stage.classList.remove("settling", "leaving");   // catch it mid-flight
   }, { passive: true });
 
-  screen.addEventListener("touchend", (e) => {
+  screen.addEventListener("touchmove", (e) => {
     if (startY === null) return;
-    const travelled = startY - e.changedTouches[0].clientY;
+    const up = startY - e.touches[0].clientY;
+    if (up <= 0) { setStageDrag(0); dragged = 0; return; }
+    e.preventDefault();                              // no rubber-banding underneath
+    dragged = up;
+    setStageDrag(up);
+  }, { passive: false });
+
+  screen.addEventListener("touchend", () => {
+    if (startY === null) return;
     startY = null;
-    if (travelled > SWIPE_MIN) afterSplash();
+    releaseStage(dragged > SWIPE_COMMIT);
   }, { passive: true });
 
-  // and for anyone not swiping: the prompt, a mouse, or a key
-  $("#splash-go").addEventListener("click", afterSplash);
-  screen.addEventListener("wheel", (e) => { if (e.deltaY > 0) afterSplash(); }, { passive: true });
+  // and for anyone not swiping: the prompt, a scroll, or a key
+  $("#splash-go").addEventListener("click", () => releaseStage(true));
+  screen.addEventListener("wheel", (e) => { if (e.deltaY > 0) releaseStage(true); }, { passive: true });
   document.addEventListener("keydown", function onKey(e) {
     if (state.splashDone) { document.removeEventListener("keydown", onKey); return; }
-    if (["Enter", " ", "ArrowUp"].includes(e.key)) afterSplash();
+    if (["Enter", " ", "ArrowUp"].includes(e.key)) releaseStage(true);
   });
 }
 

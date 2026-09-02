@@ -837,11 +837,26 @@ html, body {
    The route draws itself, the name arrives behind it, and the whole thing is
    gone in under two seconds. Tap to cut it short. */
 
-#screen-splash {
+#screen-splash { position: relative; }
+
+/* Everything moves together under the finger, so it lives on one stage. */
+.splash-stage {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 0 24px;
+  will-change: transform, opacity;
 }
+.splash-stage.settling {
+  transition: transform 380ms cubic-bezier(0.22, 1, 0.3, 1), opacity 380ms ease-out;
+}
+.splash-stage.leaving {
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.9, 0.5), opacity 260ms ease-in;
+}
+
 .splash { text-align: center; max-width: 380px; }
 
 .splash-route { width: 100%; max-width: 300px; height: auto; margin-bottom: 22px; }

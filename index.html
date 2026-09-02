@@ -37,17 +37,20 @@
 
   <!-- SPLASH - a route drawing itself, then out of the way -->
   <section id="screen-splash" class="screen">
-    <div class="splash">
-      <svg class="splash-route" viewBox="0 0 220 120" aria-hidden="true">
-        <path class="route-line"
-              d="M14 104 C 44 40, 74 118, 106 62 S 168 16, 206 40"
-              fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle class="route-start" cx="14" cy="104" r="6"/>
-        <circle class="route-end" cx="206" cy="40" r="7"/>
-      </svg>
+    <div class="splash-stage" id="splash-stage">
+      <div class="splash">
+        <svg class="splash-route" viewBox="0 0 220 120" aria-hidden="true">
+          <path class="route-line"
+                d="M14 104 C 44 40, 74 118, 106 62 S 168 16, 206 40"
+                fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle class="route-start" cx="14" cy="104" r="6"/>
+          <circle class="route-end" cx="206" cy="40" r="7"/>
+        </svg>
 
-      <h1 class="splash-title" id="splash-title">RunPath<span class="dot">.</span></h1>
-      <p class="splash-tagline" id="splash-tagline">Track it. Map it. Share it.</p>
+        <h1 class="splash-title" id="splash-title">RunPath<span class="dot">.</span></h1>
+        <p class="splash-tagline" id="splash-tagline">Track it. Map it. Share it.</p>
+      </div>
+
       <button class="splash-go" id="splash-go" aria-label="Begin">
         <svg class="chev" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M6 14.5 12 8.5 18 14.5" fill="none" stroke="currentColor"
