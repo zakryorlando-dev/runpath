@@ -842,6 +842,7 @@ function stopRun() {
   const runs = loadRuns();
   runs.unshift(run);
   saveRuns(runs);
+  syncPush("runs", run);
   state.tab = "activity";
   showDetail(run);
 
@@ -934,6 +935,7 @@ function showDetail(run) {
 
 function deleteCurrentRun() {
   if (!confirm("Delete this run permanently?")) return;
+  syncForget("runs", state.currentRun.id);
   saveRuns(loadRuns().filter((r) => r.id !== state.currentRun.id));
   refreshHome();
   show("home");
@@ -1790,6 +1792,7 @@ function saveCurrentRoute() {
     latlngs,
   });
   saveRoutes(routes);
+  syncPush("routes", routes[0]);
   renderRouteList();
   routeStatus("saved");
 }
@@ -1832,6 +1835,7 @@ function renderRouteList() {
     del.className = "danger";
     del.addEventListener("click", () => {
       if (!confirm(`Delete "${route.name}"?`)) return;
+      syncForget("routes", route.id);
       saveRoutes(loadRoutes().filter((x) => x.id !== route.id));
       if (active === routeKey("route", route.id)) setActiveRoute(null);
       renderRouteList();
@@ -2124,6 +2128,97 @@ function forgetStrava() {
   segStatus("not connected");
 }
 
+/* ---------- sync wiring ----------
+   sync.js does the talking to Firestore; this is the part that knows where the
+   app keeps things. Everything here is optional - with no account, or no
+   signal, the app behaves exactly as it did before. */
+
+function syncApi() { return window.RunPathSync || null; }
+
+function syncReadLocal(kind) {
+  return kind === "runs" ? loadRuns() : loadRoutes();
+}
+
+function syncWriteLocal(kind, records) {
+  if (kind === "runs") {
+    saveRuns(records.slice().sort((a, b) => b.date - a.date));
+  } else {
+    saveRoutes(records);
+  }
+}
+
+function syncState(text, cls) {
+  const el = $("#sync-state");
+  if (!el) return;
+  el.textContent = text;
+  el.className = "setting-val" + (cls ? " " + cls : "");
+}
+
+function renderSync(user) {
+  const api = syncApi();
+  const inEl = $("#sync-signed-in"), outEl = $("#sync-signed-out");
+  if (!inEl || !outEl) return;
+  if (!api) {                       // module blocked or offline on first load
+    outEl.hidden = true;
+    inEl.hidden = true;
+    $("#sync-hint").textContent = "Sync is unavailable right now.";
+    return;
+  }
+  inEl.hidden = !user;
+  outEl.hidden = !!user;
+  if (user) $("#sync-who").textContent = user.email || "Signed in";
+}
+
+async function runSync({ quiet = false } = {}) {
+  const api = syncApi();
+  if (!api || !api.user) return;
+  if (!quiet) syncState("Syncing…", "busy");
+  try {
+    const r = await api.syncNow({ readLocal: syncReadLocal, writeLocal: syncWriteLocal });
+    refreshHome();
+    const moved = r.pulled.runs + r.pulled.routes + r.pushed.runs + r.pushed.routes;
+    syncState(moved ? `+${r.pulled.runs + r.pulled.routes} in, ${r.pushed.runs + r.pushed.routes} out` : "Up to date");
+  } catch (err) {
+    syncState(err && err.code === "permission-denied" ? "Rules not published" : "Sync failed", "bad");
+  }
+}
+
+async function syncSignIn(creating) {
+  const api = syncApi();
+  if (!api) { alert("Sync isn't loaded - check the connection and reopen."); return; }
+  const email = $("#sync-email").value.trim();
+  const password = $("#sync-password").value;
+  if (!email || !password) { alert("Email and password are both needed."); return; }
+  try {
+    if (creating) await api.signUp(email, password);
+    else await api.signIn(email, password);
+    $("#sync-password").value = "";
+    await runSync();
+  } catch (err) {
+    alert(`Couldn't ${creating ? "create the account" : "sign in"}: ${err.message || err}`);
+  }
+}
+
+// a run or route that changes locally is mirrored, quietly and best-effort
+function syncPush(kind, record) {
+  const api = syncApi();
+  if (api && api.user) api.push(kind, record);
+}
+
+function syncForget(kind, id) {
+  const api = syncApi();
+  if (api && api.user) api.remember(kind, id);
+}
+
+window.addEventListener("runpath-sync-ready", () => {
+  const api = syncApi();
+  renderSync(null);
+  api.onUser((user) => {
+    renderSync(user);
+    if (user) runSync({ quiet: true });
+  });
+});
+
 /* ---------- backup ----------
    Everything lives on one phone, so there needs to be a way off it. One file
    with every run and route; restoring merges rather than replaces, so pulling
@@ -2310,6 +2405,13 @@ $("#btn-route-save").addEventListener("click", saveCurrentRoute);
 $("#btn-strava-connect").addEventListener("click", connectStrava);
 $("#btn-strava-manual").addEventListener("click", connectStravaManual);
 $("#btn-strava-forget").addEventListener("click", forgetStrava);
+$("#btn-sync-in").addEventListener("click", () => syncSignIn(false));
+$("#btn-sync-up").addEventListener("click", () => syncSignIn(true));
+$("#btn-sync-now").addEventListener("click", () => runSync());
+$("#btn-sync-out").addEventListener("click", async () => {
+  await syncApi().signOut();
+  syncState("Ready");
+});
 $("#btn-backup").addEventListener("click", exportBackup);
 $("#btn-restore").addEventListener("click", () => $("#backup-input").click());
 $("#backup-input").addEventListener("change", (e) => {

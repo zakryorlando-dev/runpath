@@ -713,3 +713,11 @@ html, body {
   margin-left: 6px;
 }
 .cal-day.other { background: #2d333b; color: var(--text); font-weight: 700; }
+
+
+/* ---------- sync ---------- */
+
+.setting-row.static { cursor: default; margin-bottom: 10px; }
+#sync-signed-in[hidden], #sync-signed-out[hidden] { display: none; }
+#sync-state.busy { color: var(--muted); }
+#sync-state.bad { color: var(--danger); }

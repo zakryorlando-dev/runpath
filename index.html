@@ -8,15 +8,16 @@
        hole ever slips through again, this is what stops it phoning home. -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'none';
-    script-src 'self' https://unpkg.com;
+    script-src 'self' https://unpkg.com https://www.gstatic.com;
     style-src 'self' https://unpkg.com 'unsafe-inline';
     img-src 'self' data: blob: https://tile.openstreetmap.org https://unpkg.com;
-    connect-src 'self' https://overpass-api.de https://www.strava.com;
+    connect-src 'self' https://overpass-api.de https://www.strava.com
+      https://www.gstatic.com https://identitytoolkit.googleapis.com
+      https://securetoken.googleapis.com https://firestore.googleapis.com;
     worker-src 'self';
     manifest-src 'self';
     base-uri 'none';
-    form-action 'none';
-    frame-ancestors 'none'">
+    form-action 'none'">
   <title>RunPath</title>
 
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -298,6 +299,34 @@
       the whole run.
     </p>
 
+    <h2 class="settings-sub">Sync across devices</h2>
+    <div id="sync-signed-out">
+      <input id="sync-email" class="field" type="email" inputmode="email"
+             placeholder="Email" autocomplete="username">
+      <input id="sync-password" class="field" type="password"
+             placeholder="Password" autocomplete="current-password">
+      <div class="detail-actions-row">
+        <button id="btn-sync-in" class="btn-ghost small">Sign in</button>
+        <button id="btn-sync-up" class="btn-ghost small">Create account</button>
+      </div>
+    </div>
+
+    <div id="sync-signed-in" hidden>
+      <div class="setting-row static">
+        <span class="setting-name" id="sync-who"></span>
+        <span class="setting-val" id="sync-state">Ready</span>
+      </div>
+      <div class="detail-actions-row">
+        <button id="btn-sync-now" class="btn-ghost small">Sync now</button>
+        <button id="btn-sync-out" class="btn-ghost small">Sign out</button>
+      </div>
+    </div>
+    <p class="setting-hint" id="sync-hint">
+      Optional. Runs stay on this phone and work offline either way; signing in
+      also keeps them on any other device you sign in from. Runs and routes
+      sync &mdash; settings stay per-device.
+    </p>
+
     <h2 class="settings-sub">Backup</h2>
     <div class="detail-actions-row">
       <button id="btn-backup" class="btn-ghost small">Back up everything</button>
@@ -358,5 +387,6 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
+  <script type="module" src="sync.js"></script>
 </body>
 </html>
