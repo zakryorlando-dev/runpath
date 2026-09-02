@@ -16,7 +16,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
 import {
   getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut, onAuthStateChanged,
+  signOut, onAuthStateChanged, sendPasswordResetEmail,
 } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDocs, setDoc, deleteDoc,
@@ -132,6 +132,7 @@ window.RunPathSync = {
     await signInWithEmailAndPassword(auth, email, password);
   },
   async signOut() { await signOut(auth); },
+  async resetPassword(email) { await sendPasswordResetEmail(auth, email); },
   syncNow,
   push,
   remember,

@@ -2189,6 +2189,22 @@ async function runSync({ quiet = false } = {}) {
   }
 }
 
+/* Firebase sends the reset mail and hosts the page that sets the new password,
+   so this works without a server of our own. Worth knowing: forgetting the
+   password never costs you runs - they live on this phone either way. */
+async function syncResetPassword() {
+  const api = syncApi();
+  if (!api) { alert("Sync isn't loaded - check the connection and reopen."); return; }
+  const email = $("#sync-email").value.trim();
+  if (!email) { alert("Type the account's email address first, then tap Forgot password."); return; }
+  try {
+    await api.resetPassword(email);
+    alert(`Sent a reset link to ${email}. Check spam if it doesn't arrive.`);
+  } catch (err) {
+    alert(`Couldn't send the reset email: ${err.message || err}`);
+  }
+}
+
 async function syncSignIn(creating) {
   const api = syncApi();
   if (!api) { alert("Sync isn't loaded - check the connection and reopen."); return; }
@@ -2416,6 +2432,7 @@ $("#btn-strava-manual").addEventListener("click", connectStravaManual);
 $("#btn-strava-forget").addEventListener("click", forgetStrava);
 $("#btn-sync-in").addEventListener("click", () => syncSignIn(false));
 $("#btn-sync-up").addEventListener("click", () => syncSignIn(true));
+$("#btn-sync-forgot").addEventListener("click", syncResetPassword);
 $("#btn-sync-now").addEventListener("click", () => runSync());
 $("#btn-sync-out").addEventListener("click", async () => {
   await syncApi().signOut();
