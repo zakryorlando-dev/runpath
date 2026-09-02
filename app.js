@@ -28,6 +28,7 @@ const state = {
   dimTimer: null,
   dimmed: false,
   dimEnabled: true,
+  plan: null,          // training plan, loaded from plan.json
 };
 
 const now = () => (state.demo ? state.simNow : Date.now());
@@ -122,6 +123,65 @@ function renderHistory() {
   }
 }
 
+/* ---------- training plan ----------
+   plan.json ships with the app, so the schedule is on every device without
+   anything to set up. Absent or malformed, the plan UI simply stays hidden. */
+
+async function loadPlan() {
+  try {
+    const res = await fetch("plan.json", { cache: "no-cache" });
+    if (!res.ok) return null;
+    const plan = await res.json();
+    if (!plan || !plan.startMonday || !Array.isArray(plan.weeks) || !plan.weeks.length) {
+      return null;
+    }
+    return plan;
+  } catch {
+    return null;
+  }
+}
+
+// which week of the plan a given date falls in, or null if outside it
+function planWeekFor(date) {
+  if (!state.plan) return null;
+  const start = startOfWeek(new Date(`${state.plan.startMonday}T00:00:00`));
+  const idx = Math.round((startOfWeek(date) - start) / (7 * 86400000));
+  if (idx < 0 || idx >= state.plan.weeks.length) return null;
+  return { idx, ...state.plan.weeks[idx] };
+}
+
+function renderPlan(currentWeekMiles) {
+  const row = $("#plan-row");
+  const wk = planWeekFor(new Date());
+  if (!wk) { row.hidden = true; return; }
+  row.hidden = false;
+
+  const target = Number(wk.targetMiles) || 0;
+  const pct = target ? Math.min(100, (currentWeekMiles / target) * 100) : 0;
+  const fill = $("#plan-fill");
+  fill.style.width = `${pct}%`;
+  fill.classList.toggle("done", pct >= 100);
+
+  $("#plan-week").textContent = `Week ${wk.idx + 1} of ${state.plan.weeks.length}`;
+
+  if (state.plan.raceDate) {
+    const days = Math.ceil(
+      (new Date(`${state.plan.raceDate}T00:00:00`) - new Date()) / 86400000
+    );
+    $("#plan-race").textContent =
+      days > 0 ? `race in ${days} day${days === 1 ? "" : "s"}` : "race day";
+  }
+
+  const left = Math.max(0, target - currentWeekMiles);
+  const parts = [
+    `<strong>${currentWeekMiles.toFixed(1)}</strong> of ${target} mi`,
+    left > 0.05 ? `${left.toFixed(1)} to go` : "week complete",
+  ];
+  if (wk.longRunMiles) parts.push(`long run <strong>${wk.longRunMiles} mi</strong>`);
+  if (wk.note) parts.push(wk.note);
+  $("#plan-note").innerHTML = parts.join(" &middot; ");
+}
+
 /* ---------- progress ----------
    Weekly totals, a twelve-week bar chart and a month calendar, so a run has
    somewhere to land beyond the history list. */
@@ -148,11 +208,13 @@ function weekBuckets(runs, count) {
     const to = new Date(from);
     to.setDate(to.getDate() + 7);
     const mine = runs.filter((r) => r.date >= +from && r.date < +to);
+    const planned = planWeekFor(from);
     weeks.push({
       from,
       miles: mine.reduce((a, r) => a + runDistance(r), 0) / MI,
       ms: mine.reduce((a, r) => a + r.durationMs, 0),
       count: mine.length,
+      target: planned ? Number(planned.targetMiles) || 0 : 0,
     });
   }
   return weeks;
@@ -160,13 +222,19 @@ function weekBuckets(runs, count) {
 
 function drawWeekChart(weeks) {
   const W = 320, H = 96, pad = 14, n = weeks.length;
-  const peak = Math.max(1, ...weeks.map((w) => w.miles));
+  const peak = Math.max(1, ...weeks.map((w) => Math.max(w.miles, w.target || 0)));
   const slot = W / n, barW = Math.min(16, slot * 0.55);
   const usable = H - pad - 16;
 
   let bars = "", labels = "", lastMonth = -1;
   weeks.forEach((w, i) => {
     const x = i * slot + (slot - barW) / 2;
+    if (w.target) {
+      const th = Math.max(3, (w.target / peak) * usable);
+      bars += `<rect class="bar target" x="${x.toFixed(1)}" ` +
+              `y="${(pad + usable - th).toFixed(1)}" width="${barW.toFixed(1)}" ` +
+              `height="${th.toFixed(1)}" rx="3"/>`;
+    }
     const height = Math.max(w.miles > 0 ? 3 : 2, (w.miles / peak) * usable);
     const y = pad + usable - height;
     const cls = w.miles === 0 ? "bar empty" : i === n - 1 ? "bar current" : "bar";
@@ -226,9 +294,9 @@ function refreshHome() {
 
 function renderProgress() {
   const runs = loadRuns();
-  // nothing to chart before the first run; don't greet anyone with empty axes
-  document.querySelector(".progress-wrap").hidden = runs.length === 0;
-  if (!runs.length) return;
+  // nothing to chart before the first run - unless a plan is waiting
+  document.querySelector(".progress-wrap").hidden = !runs.length && !state.plan;
+  if (!runs.length && !state.plan) return;
 
   const weeks = weekBuckets(runs, 12);
   const current = weeks[weeks.length - 1];
@@ -244,6 +312,7 @@ function renderProgress() {
   $("#streak-note").textContent =
     streak ? `${streak} week${streak > 1 ? "s" : ""} in a row` : "no streak yet";
 
+  renderPlan(current.miles);
   drawWeekChart(weeks);
   drawCalendar(runs);
 }
@@ -1154,6 +1223,7 @@ $("#btn-delete").addEventListener("click", deleteCurrentRun);
 setDimPref(loadDimPref());
 migrateRuns();
 refreshHome();
+loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
 
 if ("serviceWorker" in navigator &&
     (location.protocol === "https:" || location.hostname === "localhost")) {
