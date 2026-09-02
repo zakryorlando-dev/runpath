@@ -279,6 +279,9 @@ html, body {
 }
 .cal-day.blank { visibility: hidden; }
 .cal-day.today { border-color: var(--text); color: var(--text); }
+/* a day the plan asks for, still outstanding */
+.cal-day.planned { border-color: rgba(46, 229, 157, 0.4); color: var(--text); }
+
 /* a day you ran fills in, the way a streak calendar should read at a glance */
 .cal-day.ran { background: var(--accent); color: #04150d; font-weight: 700; }
 .cal-day.ran.today { border-color: var(--text); }

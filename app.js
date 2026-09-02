@@ -144,6 +144,13 @@ async function loadPlan() {
   }
 }
 
+// is this a day the plan asks for a run?
+function isPlannedDay(date) {
+  if (!state.plan || !Array.isArray(state.plan.runDays)) return false;
+  if (!planWeekFor(date)) return false;
+  return state.plan.runDays.includes(date.getDay());
+}
+
 // which week of the plan a given date falls in, or null if outside it
 function planWeekFor(date) {
   if (!state.plan) return null;
@@ -153,14 +160,15 @@ function planWeekFor(date) {
   return { idx, ...state.plan.weeks[idx] };
 }
 
-function renderPlan(currentWeekMiles) {
+function renderPlan(week) {
   const row = $("#plan-row");
   const wk = planWeekFor(new Date());
   if (!wk) { row.hidden = true; return; }
   row.hidden = false;
 
-  const target = Number(wk.targetMiles) || 0;
-  const pct = target ? Math.min(100, (currentWeekMiles / target) * 100) : 0;
+  const target = Number(wk.targetMinutes) || 0;
+  const done = week.ms / 60000;
+  const pct = target ? Math.min(100, (done / target) * 100) : 0;
   const fill = $("#plan-fill");
   fill.style.width = `${pct}%`;
   fill.classList.toggle("done", pct >= 100);
@@ -172,17 +180,20 @@ function renderPlan(currentWeekMiles) {
       (new Date(`${state.plan.raceDate}T00:00:00`) - new Date()) / 86400000
     );
     $("#plan-race").textContent =
-      days > 0 ? `race in ${days} day${days === 1 ? "" : "s"}` : "race day";
+      days > 1 ? `race in ${days} days` : days === 1 ? "race tomorrow" : "race day";
   }
 
-  const left = Math.max(0, target - currentWeekMiles);
-  const parts = [
-    `<strong>${currentWeekMiles.toFixed(1)}</strong> of ${target} mi`,
-    left > 0.05 ? `${left.toFixed(1)} to go` : "week complete",
-  ];
-  if (wk.longRunMiles) parts.push(`long run <strong>${wk.longRunMiles} mi</strong>`);
+  const left = Math.max(0, target - done);
+  const parts = [`${Math.round(done)} of ${target} min`];
+  parts.push(left >= 1 ? `${Math.round(left)} to go` : "week complete");
+  if (wk.longRunMinutes) {
+    parts.push(`long run ${wk.longRunMinutes} min` +
+      (wk.longRunMiles ? ` (~${wk.longRunMiles} mi)` : ""));
+  } else if (wk.longRunMiles) {
+    parts.push(`race ${wk.longRunMiles} mi`);
+  }
   if (wk.note) parts.push(wk.note);
-  $("#plan-note").innerHTML = parts.join(" &middot; ");
+  $("#plan-note").textContent = parts.join(" \u00b7 ");   // plain text, never markup
 }
 
 /* ---------- progress ----------
@@ -217,7 +228,7 @@ function weekBuckets(runs, count) {
       miles: mine.reduce((a, r) => a + runDistance(r), 0) / MI,
       ms: mine.reduce((a, r) => a + r.durationMs, 0),
       count: mine.length,
-      target: planned ? Number(planned.targetMiles) || 0 : 0,
+      target: planned ? Number(planned.targetMiles) || 0 : 0,   // unset for time-based plans
     });
   }
   return weeks;
@@ -283,6 +294,7 @@ function drawCalendar(runs) {
   for (let day = 1; day <= days; day++) {
     const cls = ["cal-day"];
     if (ran.has(day)) cls.push("ran");
+    else if (isPlannedDay(new Date(year, month, day))) cls.push("planned");
     if (day === now.getDate()) cls.push("today");
     html += `<div class="${cls.join(" ")}">${day}</div>`;
   }
@@ -315,7 +327,7 @@ function renderProgress() {
   $("#streak-note").textContent =
     streak ? `${streak} week${streak > 1 ? "s" : ""} in a row` : "no streak yet";
 
-  renderPlan(current.miles);
+  renderPlan(current);
   drawWeekChart(weeks);
   drawCalendar(runs);
 }

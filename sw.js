@@ -1,9 +1,10 @@
-const CACHE = "runpath-v3";
+const CACHE = "runpath-v4";
 const CORE = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./plan.json",
   "./manifest.webmanifest",
   "./icon-180.png",
   "./icon-192.png",
