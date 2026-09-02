@@ -248,7 +248,7 @@
   </section>
 
   <!-- HOME — this week, today, the plan, and something to run -->
-  <section id="screen-home" class="screen tabbed active">
+  <section id="screen-home" class="screen tabbed">
     <header class="home-header">
       <h1>RunPath</h1>
       <p class="tagline">Track it. Map it. Share it.</p>
@@ -614,7 +614,7 @@
   </section>
 
   <!-- START, docked above the tab bar so it stays put while Home scrolls -->
-  <div id="start-dock" class="start-dock">
+  <div id="start-dock" class="start-dock" hidden>
     <p id="following" class="following" hidden></p>
     <div class="type-picker" id="type-picker">
       <button class="type-pill active" data-type="run">Run</button>
@@ -625,7 +625,7 @@
   </div>
 
   <!-- TAB BAR -->
-  <nav id="tabbar" class="tabbar">
+  <nav id="tabbar" class="tabbar" hidden>
     <button class="tab" data-tab="activity">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="12" width="4" height="9" rx="1"/><rect x="10" y="7" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="18" rx="1"/></svg>
       <span>Activity</span>
