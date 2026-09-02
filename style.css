@@ -879,7 +879,7 @@ html, body {
   max-width: 300px;
   height: auto;
   margin-bottom: 22px;
-  overflow: visible;          /* the dots fall in from above the frame */
+  overflow: visible;          /* the dots are far larger than the frame on the way in */
 }
 
 /* The dot drops in and settles, the route draws itself over three seconds,
@@ -963,52 +963,48 @@ html, body {
 
 @keyframes draw-route { to { stroke-dashoffset: 0; } }
 @keyframes drop-bounce {
-  0%   { opacity: 0; transform: translateY(-120px) scaleY(1.06);
+  0%   { opacity: 0; transform: scale(5.2); filter: blur(2.2px);
          animation-timing-function: cubic-bezier(0.55, 0, 1, 1); }
-  10%  { opacity: 1; transform: translateY(-104px) scaleY(1.06);
+  10%  { opacity: 1; transform: scale(4.3); filter: blur(1.7px);
          animation-timing-function: cubic-bezier(0.55, 0, 1, 1); }
-  42%  { opacity: 1; transform: translateY(0) scaleY(1.1);
-         animation-timing-function: cubic-bezier(0.3, 0, 0.5, 1); }
-  46%  { transform: translateY(0) scale(1.3, 0.7);
-         animation-timing-function: cubic-bezier(0, 0, 0.4, 1); }
-  57%  { transform: translateY(-30px) scale(0.95, 1.07);
+  42%  { opacity: 1; transform: scale(1); filter: blur(0);
+         animation-timing-function: cubic-bezier(0, 0, 0.35, 1); }
+  56%  { transform: scale(1.62); filter: blur(0);
          animation-timing-function: cubic-bezier(0.6, 0, 1, 1); }
-  70%  { transform: translateY(0) scale(1.16, 0.84);
-         animation-timing-function: cubic-bezier(0, 0, 0.4, 1); }
-  79%  { transform: translateY(-11px) scale(0.98, 1.03);
+  70%  { transform: scale(1);
+         animation-timing-function: cubic-bezier(0, 0, 0.35, 1); }
+  80%  { transform: scale(1.22);
          animation-timing-function: cubic-bezier(0.6, 0, 1, 1); }
-  88%  { transform: translateY(0) scale(1.07, 0.93);
-         animation-timing-function: cubic-bezier(0, 0, 0.4, 1); }
-  94%  { transform: translateY(-3px) scale(1, 1);
+  89%  { transform: scale(1);
+         animation-timing-function: cubic-bezier(0, 0, 0.35, 1); }
+  95%  { transform: scale(1.06);
          animation-timing-function: cubic-bezier(0.6, 0, 1, 1); }
-  100% { opacity: 1; transform: translateY(0) scale(1, 1); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 @keyframes pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
 @keyframes drop-land {
-  0%   { opacity: 0; transform: translateY(-115px) scaleY(1.06);
+  0%   { opacity: 0; transform: scale(4.8); filter: blur(2px);
          animation-timing-function: cubic-bezier(0.55, 0, 1, 1); }
-  10%  { opacity: 1; transform: translateY(-99px) scaleY(1.06);
+  10%  { opacity: 1; transform: scale(4); filter: blur(1.5px);
          animation-timing-function: cubic-bezier(0.55, 0, 1, 1); }
-  42%  { opacity: 1; transform: translateY(0) scaleY(1.1);
-         animation-timing-function: cubic-bezier(0.3, 0, 0.5, 1); }
-  46%  { transform: translateY(0) scale(1.28, 0.72);
-         animation-timing-function: cubic-bezier(0, 0, 0.4, 1); }
-  57%  { transform: translateY(-28px) scale(0.95, 1.07);
+  42%  { opacity: 1; transform: scale(1); filter: blur(0);
+         animation-timing-function: cubic-bezier(0, 0, 0.35, 1); }
+  56%  { transform: scale(1.55); filter: blur(0);
          animation-timing-function: cubic-bezier(0.6, 0, 1, 1); }
-  70%  { transform: translateY(0) scale(1.15, 0.85);
-         animation-timing-function: cubic-bezier(0, 0, 0.4, 1); }
-  79%  { transform: translateY(-10px) scale(0.98, 1.03);
+  70%  { transform: scale(1);
+         animation-timing-function: cubic-bezier(0, 0, 0.35, 1); }
+  80%  { transform: scale(1.2);
          animation-timing-function: cubic-bezier(0.6, 0, 1, 1); }
-  88%  { transform: translateY(0) scale(1.06, 0.94);
-         animation-timing-function: cubic-bezier(0, 0, 0.4, 1); }
-  94%  { transform: translateY(-3px) scale(1, 1);
+  89%  { transform: scale(1);
+         animation-timing-function: cubic-bezier(0, 0, 0.35, 1); }
+  95%  { transform: scale(1.06);
          animation-timing-function: cubic-bezier(0.6, 0, 1, 1); }
-  100% { opacity: 1; transform: translateY(0) scale(1, 1); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0); }
 }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { to { opacity: 1; } }
 
-.route-start, .route-end { transform-box: fill-box; transform-origin: center bottom; }
+.route-start, .route-end { transform-box: fill-box; transform-origin: center; }
 
 /* somebody who asked their phone to calm down gets the still version */
 /* Reduce Motion means no movement - it doesn't mean no sequence. Everything
