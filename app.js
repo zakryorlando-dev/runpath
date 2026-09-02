@@ -168,6 +168,36 @@ function renderHistory() {
 
 const SPLASH_MS = 3500;
 
+/* Somebody coming back gets their name rather than the sales pitch. The name
+   is local so it's ready immediately; being signed in is confirmed a moment
+   later, so the line is written again if the splash is still up. */
+function renderSplashGreeting() {
+  const title = $("#splash-title");
+  const tagline = $("#splash-tagline");
+  if (!title || !tagline) return;
+
+  const name = state.profile && state.profile.name;
+  const signedIn = !!(syncApi() && syncApi().user);
+  const returning = signedIn || !!name || !!loadRuns().length || onboarded();
+
+  if (returning && name) {
+    title.textContent = `Welcome back, ${name}`;
+    title.appendChild(Object.assign(document.createElement("span"),
+      { className: "dot", textContent: "!" }));
+    tagline.textContent = "Ready when you are.";
+  } else if (returning) {
+    title.textContent = "Welcome back";
+    title.appendChild(Object.assign(document.createElement("span"),
+      { className: "dot", textContent: "!" }));
+    tagline.textContent = "Ready when you are.";
+  } else {
+    title.textContent = "RunPath";
+    title.appendChild(Object.assign(document.createElement("span"),
+      { className: "dot", textContent: "." }));
+    tagline.textContent = "Track it. Map it. Share it.";
+  }
+}
+
 function afterSplash() {
   if (state.splashDone) return;
   state.splashDone = true;
@@ -180,6 +210,7 @@ function runSplash() {
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
+  renderSplashGreeting();
   show("splash");
   state.splashTimer = setTimeout(afterSplash, still ? 2000 : SPLASH_MS);
   document.querySelector("#screen-splash").addEventListener("click", afterSplash, { once: true });
@@ -1226,6 +1257,39 @@ function holdToFire(btn, onFire) {
   }
 }
 
+/* The details onboarding asks newcomers for, reachable by everyone else. */
+function renderProfileFields() {
+  const p = state.profile || {};
+  const name = $("#set-name"), weight = $("#set-weight");
+  if (!name || !weight) return;
+  if (p.name) name.value = p.name;
+  if (p.weightLb) weight.value = p.weightLb;
+}
+
+function saveProfileFields() {
+  const name = $("#set-name").value.trim();
+  const weightLb = Number($("#set-weight").value) || null;
+  saveProfile({ ...(state.profile || {}), name, weightLb });
+  refreshHome();
+  alert("Saved.");
+}
+
+/* A rough figure, from weight and how fast the session was. MET values are
+   population averages, so this is an estimate and labelled as one - without a
+   heart rate there is no honest way to do better. */
+function estimateCalories(run) {
+  const weightLb = state.profile && state.profile.weightLb;
+  const miles = runDistance(run) / MI;
+  const hours = run.durationMs / 3600000;
+  if (!weightLb || !hours || miles < 0.05) return null;
+
+  const mph = miles / hours;
+  const type = runType(run);
+  const met = type === "bike" ? 0.65 * mph : type === "walk" ? 1.1 * mph : 1.65 * mph;
+  const kcal = Math.round(met * (weightLb / 2.205) * hours);
+  return kcal > 0 ? kcal : null;
+}
+
 /* ---------- run detail ---------- */
 
 function showDetail(run) {
@@ -1240,6 +1304,9 @@ function showDetail(run) {
   $("#d-dist").textContent = (runDistance(run) / MI).toFixed(2);
   $("#d-time").textContent = fmtTime(run.durationMs);
   $("#d-pace").textContent = fmtPace(run.durationMs, runDistance(run));
+  const kcal = estimateCalories(run);
+  $("#d-burn").hidden = !kcal;
+  if (kcal) $("#d-burn").textContent = `roughly ${kcal} kcal`;
 
   if (state.detailMap) { state.detailMap.remove(); state.detailMap = null; }
   state.detailMap = L.map("detail-map", { zoomControl: false });
@@ -2590,6 +2657,7 @@ window.addEventListener("runpath-sync-ready", () => {
   renderSync(null);
   api.onUser((user) => {
     renderSync(user);
+    if (!state.splashDone) renderSplashGreeting();
     if (user) runSync({ quiet: true });
   });
 });
@@ -2808,6 +2876,7 @@ $("#btn-strava-manual").addEventListener("click", connectStravaManual);
 $("#btn-strava-forget").addEventListener("click", forgetStrava);
 $("#btn-sync-in").addEventListener("click", () => syncSignIn(false));
 $("#btn-sync-up").addEventListener("click", () => syncSignIn(true));
+$("#btn-save-profile").addEventListener("click", saveProfileFields);
 $("#btn-delete-account").addEventListener("click", deleteAccountAndData);
 $("#btn-sync-forgot").addEventListener("click", syncResetPassword);
 $("#btn-sync-now").addEventListener("click", () => runSync());
@@ -2892,6 +2961,7 @@ setDimPref(loadDimPref());
 stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
 migrateRuns();
 state.profile = loadProfile();
+renderProfileFields();
 runSplash();
 loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
 

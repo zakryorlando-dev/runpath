@@ -46,8 +46,8 @@
         <circle class="route-end" cx="206" cy="40" r="7"/>
       </svg>
 
-      <h1 class="splash-title">RunPath<span class="dot">.</span></h1>
-      <p class="splash-tagline">Track it. Map it. Share it.</p>
+      <h1 class="splash-title" id="splash-title">RunPath<span class="dot">.</span></h1>
+      <p class="splash-tagline" id="splash-tagline">Track it. Map it. Share it.</p>
       <p class="splash-hint">tap to continue</p>
     </div>
   </section>
@@ -372,6 +372,7 @@
           <div class="stat-label">/ Mile</div>
         </div>
       </div>
+      <p class="muted burn" id="d-burn" hidden></p>
       <div class="type-picker" id="detail-type">
         <button class="type-pill" data-type="run">Run</button>
         <button class="type-pill" data-type="walk">Walk</button>
@@ -497,6 +498,17 @@
       Trims this much off both ends of a route in shared cards and exported
       files, so they don't start at your front door. Your own map still shows
       the whole run.
+    </p>
+
+    <h2 class="settings-sub">You</h2>
+    <div class="ob-row">
+      <input id="set-name" class="field" placeholder="Name" autocomplete="given-name">
+      <input id="set-weight" class="field" inputmode="numeric" placeholder="Weight (lb)">
+    </div>
+    <button id="btn-save-profile" class="btn-ghost wide">Save</button>
+    <p class="setting-hint">
+      Your name is used to say hello; weight lets a finished run show a rough
+      calorie figure. Both stay on this phone unless you're signed in.
     </p>
 
     <h2 class="settings-sub">About &amp; privacy</h2>

@@ -903,3 +903,7 @@ html, body {
     opacity: 1;
   }
 }
+
+
+.burn { font-size: 12px; text-align: center; margin: -8px 0 12px; }
+.burn[hidden] { display: none; }
