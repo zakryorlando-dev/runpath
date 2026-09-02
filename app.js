@@ -242,9 +242,13 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "16:00";           // shown on the splash while this is in doubt
-const INTRO_SETTLE_MS = 450;     // a breath of blank before the sequence starts,
-                                 // tripled to see what it does to the phone's reveal
+const BUILD = "16:09";           // shown on the splash while this is in doubt
+const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
+                                 // its launch screen up for about 1.2s while the page
+                                 // is already animating behind it; a recording caught
+                                 // the reveal landing 0.7s in, with the dot long since
+                                 // landed. Waiting it out is more reliable than trying
+                                 // to detect it - the watch below is only a backstop.
 const INTRO_REPLAY_BLANK_MS = 900;   // a beat of blank before a restart, so a
                                      // restart reads as deliberate. Tripled to match
 const INTRO_WATCH_MS = 3000;     // only the opening. A restart later than this
