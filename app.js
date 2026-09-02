@@ -231,43 +231,58 @@ function afterSplash() {
   else openAfterTerms();
 }
 
-/* An animation's clock starts when the animation does, not when anything is
-   drawn. A launching app spends a moment fetching and parsing before its first
-   paint, and a three-second intro started at script time can be over before a
-   single frame reaches the screen - which looks like a flash and then the end
-   state. So wait for a painted frame, and for the page to actually be visible,
-   before letting it begin. */
+/* Getting an intro to start when it can actually be seen is harder than it
+   sounds on iOS. A launching web app sits behind the system's launch screen,
+   and frames are produced back there - so requestAnimationFrame fires long
+   before anything reaches the eye, and an animation started on it burns
+   through most of its length unwatched.
+
+   Screen recordings of this app launching showed the reveal landing roughly a
+   second after the page began drawing. So: wait for the page to finish
+   loading, then a couple of frames, then a beat longer. And afterwards check
+   whether the clock ran further than real time could account for - the
+   signature of a stretch spent hidden - and if so, start it again. */
+
+const INTRO_SETTLE_MS = 450;    // beyond load, to let the launch screen lift
+const INTRO_CHECK_MS = 900;     // when to ask whether it really played
+
 function startIntro(stage) {
-  const begin = () => {
+  const play = () => {
     stage.classList.remove("playing");
-    void stage.offsetWidth;                    // replay from the top each launch
+    void stage.offsetWidth;                    // replay from the top
     stage.classList.add("playing");
 
-    /* iOS holds a launch screen over a starting app, and frames can be
-       produced behind it. If the clock has already run on by the time two
-       frames have gone by, nobody saw the start - so start it again, now that
-       the screen is demonstrably being drawn. Once only, so a slow phone
-       can't get stuck in a loop. */
-    requestAnimationFrame(() => requestAnimationFrame(() => {
+    const startedAt = performance.now();
+    setTimeout(() => {
       const line = document.querySelector(".route-line");
       const anim = line && line.getAnimations()[0];
-      if (anim && anim.currentTime > 400 && !state.introRestarted) {
+      if (!anim || state.introRestarted || state.splashDone) return;
+      const real = performance.now() - startedAt;
+      // a clock well ahead of the wall clock means frames went unseen
+      if ((anim.currentTime || 0) > real + 700) {
         state.introRestarted = true;
-        begin();
+        play();
       }
-    }));
+    }, INTRO_CHECK_MS);
   };
-  const onNextPaint = () => requestAnimationFrame(() => requestAnimationFrame(begin));
 
-  if (document.visibilityState === "hidden") {
-    document.addEventListener("visibilitychange", function once() {
-      if (document.visibilityState === "hidden") return;
-      document.removeEventListener("visibilitychange", once);
-      onNextPaint();
-    });
-    return;
-  }
-  onNextPaint();
+  const arm = () => requestAnimationFrame(() =>
+    requestAnimationFrame(() => setTimeout(play, INTRO_SETTLE_MS)));
+
+  const whenVisible = () => {
+    if (document.visibilityState === "hidden") {
+      document.addEventListener("visibilitychange", function once() {
+        if (document.visibilityState === "hidden") return;
+        document.removeEventListener("visibilitychange", once);
+        arm();
+      });
+    } else {
+      arm();
+    }
+  };
+
+  if (document.readyState === "complete") whenVisible();
+  else window.addEventListener("load", whenVisible, { once: true });
 }
 
 function runSplash() {
