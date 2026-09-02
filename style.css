@@ -1050,18 +1050,31 @@ html, body {
 /* Reduce Motion means no movement - it doesn't mean no sequence. Everything
    still arrives in order, it just fades instead of travelling, and the line
    appears whole rather than drawing itself across the screen. */
+/* This screen used to carry a second, quieter version of itself for phones with
+   Reduce Motion turned on. It was doing more harm than good: the setting was on,
+   nobody knew, and every change to the real sequence landed on a version that was
+   never played. The intro is four seconds and a swipe skips it, so there is now
+   one of it. The drag off the screen still shortens. */
 @media (prefers-reduced-motion: reduce) {
-  /* The letter is simply where it belongs from the start; nothing slides or zooms. */
-  .wordmark { transform: none; }
-  .splash-route { transform: none; }
-  .playing .wordmark, .playing .splash-route { animation: none; }
-  .playing .route-start { animation: fade-in var(--sp-dot) ease-out forwards; }
-  .playing .route-end { animation: fade-in var(--sp-end) ease-out var(--sp-end-delay) forwards; }
-  .playing .splash-title { animation: fade-in var(--sp-words) ease-out var(--sp-title-delay) forwards; }
-  .playing .splash-tagline { animation: fade-in var(--sp-words) ease-out var(--sp-tag-delay) forwards; }
-  .playing .splash-go { animation: fade-in var(--sp-go) ease-out var(--sp-go-delay) forwards; }
-  .playing .splash-go .chev { animation: none; }
   .splash-stage.settling, .splash-stage.leaving { transition-duration: 200ms; }
+}
+
+/* The finished panel, with nothing running. This is what stands in when you
+   leave the app: the same screen the intro ends on, arrived at directly. */
+.splash-stage.settled .route-line { stroke-dashoffset: 0; }
+.splash-stage.settled .route-start,
+.splash-stage.settled .route-end { opacity: 1; transform: scale(1); filter: none; }
+.splash-stage.settled .wordmark { transform: translateX(0); }
+.splash-stage.settled .splash-route { transform: scale(1); }
+.splash-stage.settled .wordmark-rest,
+.splash-stage.settled .splash-title,
+.splash-stage.settled .splash-tagline { opacity: 1; transform: none; }
+.splash-stage.settled .splash-go {
+  opacity: 1;
+  animation: breathe 2800ms ease-in-out infinite;
+}
+.splash-stage.settled .splash-go .chev {
+  animation: chev-drift 2800ms ease-in-out infinite;
 }
 
 

@@ -50,6 +50,7 @@ const state = {
   introRestarted: false,
   resumeTo: null,      // screen the splash should hand back to on the way out
   splashWired: false,  // the drag listeners go on once, not once per showing
+  splashMode: "intro", // "intro" plays the sequence, "settled" is its end state
   obChoices: {},
 };
 
@@ -254,7 +255,7 @@ function raiseSplash() {
   if (!active || active.id === "screen-splash") return;
   state.resumeTo = active.id.replace("screen-", "");
   state.splashDone = false;
-  runSplash();
+  openSplash("settled");                // the finished panel, not the sequence again
 }
 
 /* Getting an intro to start when it can actually be seen is harder than it
@@ -268,7 +269,7 @@ function raiseSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "16:20";           // shown on the splash while this is in doubt
+const BUILD = "16:33";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -352,6 +353,7 @@ function startIntro(stage, settleMs) {
     introReturnWired = true;
     document.addEventListener("visibilitychange", () => {
       if (state.splashDone || !introReplay) return;
+      if (state.splashMode !== "intro") return;   // the settled panel just stays put
       if (document.visibilityState === "visible") introReplay(INTRO_REPLAY_BLANK_MS);
     });
   }
@@ -379,7 +381,12 @@ function measureRoute() {
   if (len) path.style.setProperty("--route-len", len);
 }
 
-function runSplash() {
+function runSplash() { openSplash("intro"); }
+
+/* "intro" plays the sequence from the first dot. "settled" arrives at the end
+   of it directly, with nothing animating - the panel that stands in when you
+   leave the app. */
+function openSplash(mode) {
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
   renderSplashGreeting();
@@ -395,11 +402,13 @@ function runSplash() {
 
   const screen = document.querySelector("#screen-splash");
   const stage = splashStage();
-  stage.classList.remove("settling", "leaving", "playing");
+  stage.classList.remove("settling", "leaving", "playing", "drew", "settled");
   stage.style.transform = "";
   stage.style.opacity = "";
+  state.splashMode = mode;
 
-  startIntro(stage, state.resumeTo ? 0 : INTRO_SETTLE_MS);
+  if (mode === "settled") stage.classList.add("settled");
+  else startIntro(stage, INTRO_SETTLE_MS);
 
   if (state.splashWired) return;
   state.splashWired = true;
@@ -1168,7 +1177,13 @@ function setWakeNote(text) {
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && state.tracking) keepAwake();
   if (document.visibilityState === "hidden") raiseSplash();
+  /* Backgrounding can freeze the page before it repaints, so the panel may not
+     have reached the screen on the way out. Raising it again on the way back in
+     costs nothing when it is already up. */
+  if (document.visibilityState === "visible") raiseSplash();
 });
+window.addEventListener("pagehide", raiseSplash);
+window.addEventListener("blur", raiseSplash);
 window.addEventListener("focus", () => { if (state.tracking) keepAwake(); });
 
 /* ---------- auto-dim ----------
