@@ -861,27 +861,29 @@ html, body {
 
 .splash-route { width: 100%; max-width: 300px; height: auto; margin-bottom: 22px; }
 
+/* The dot drops in and settles, the route draws itself over three seconds,
+   the far dot lands when it arrives, and only then does the name appear. */
 .route-line {
   stroke: var(--accent);
   stroke-width: 5;
   stroke-dasharray: 320;
   stroke-dashoffset: 320;
-  animation: draw-route 1150ms cubic-bezier(0.35, 0, 0.2, 1) forwards;
+  animation: draw-route 3000ms cubic-bezier(0.45, 0.05, 0.3, 1) 600ms forwards;
 }
 .route-start, .route-end { fill: var(--accent); opacity: 0; }
-.route-start { animation: pop 380ms ease-out 120ms forwards; }
+.route-start { animation: drop-bounce 780ms cubic-bezier(0.3, 0, 0.5, 1) forwards; }
 .route-end {
   fill: #fff;
   stroke: var(--accent);
   stroke-width: 3;
-  animation: pop 420ms cubic-bezier(0.2, 1.5, 0.4, 1) 1050ms forwards;
+  animation: pop 460ms cubic-bezier(0.2, 1.6, 0.4, 1) 3560ms forwards;
 }
 
 .splash-title {
   font-size: 42px;
   letter-spacing: -1px;
   opacity: 0;
-  animation: rise 600ms ease-out 620ms forwards;
+  animation: rise 700ms ease-out 3820ms forwards;
 }
 .splash-title .dot { color: var(--accent); }
 
@@ -890,7 +892,7 @@ html, body {
   font-size: 16px;
   margin-top: 6px;
   opacity: 0;
-  animation: rise 600ms ease-out 800ms forwards;
+  animation: rise 700ms ease-out 3980ms forwards;
 }
 
 /* The screen waits now, so something has to say why. Breathes rather than
@@ -914,14 +916,14 @@ html, body {
   text-transform: uppercase;
   cursor: pointer;
   opacity: 0;
-  animation: fade-in 700ms ease-out 1600ms forwards,
-             breathe 2600ms ease-in-out 2300ms infinite;
+  animation: fade-in 700ms ease-out 4450ms forwards,
+             breathe 2600ms ease-in-out 5150ms infinite;
 }
 .splash-go .chev {
   width: 26px;
   height: 26px;
   margin-bottom: 4px;
-  animation: chev-drift 2600ms ease-in-out 2300ms infinite;
+  animation: chev-drift 2600ms ease-in-out 5150ms infinite;
 }
 .go-line { line-height: 1.5; }
 
@@ -929,6 +931,14 @@ html, body {
 @keyframes chev-drift { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 
 @keyframes draw-route { to { stroke-dashoffset: 0; } }
+@keyframes drop-bounce {
+  0%   { opacity: 0; transform: translateY(-26px); }
+  50%  { opacity: 1; transform: translateY(0); }
+  66%  { transform: translateY(-7px); }
+  80%  { transform: translateY(0); }
+  90%  { transform: translateY(-2.5px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
 @keyframes pop { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
 @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { to { opacity: 1; } }
