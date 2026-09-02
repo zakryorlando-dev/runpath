@@ -48,6 +48,8 @@ const state = {
   obStep: 0,
   splashDone: false,
   introRestarted: false,
+  resumeTo: null,      // screen the splash should hand back to on the way out
+  splashWired: false,  // the drag listeners go on once, not once per showing
   obChoices: {},
 };
 
@@ -227,8 +229,32 @@ function afterSplash() {
   stage.classList.remove("settling", "leaving");
   stage.style.transform = "";
   stage.style.opacity = "";
+  if (state.resumeTo) {                 // raised on the way back in, not at launch
+    const back = state.resumeTo;
+    state.resumeTo = null;
+    show(back);
+    return;
+  }
   if (!termsAccepted()) showTerms();
   else openAfterTerms();
+}
+
+/* Leaving the app puts the name back up behind you, so the app switcher shows
+   RunPath rather than whatever you happened to be reading, and so coming back
+   opens on the name instead of a half-remembered screen.
+
+   A run in progress is the exception, and not a small one: that screen is the
+   reason the phone went into a pocket, and it has to be there the moment it
+   comes out - not behind a swipe. */
+function raiseSplash() {
+  if (!state.splashDone) return;        // already up
+  if (state.tracking) return;           // never over a run
+  if (!termsAccepted()) return;
+  const active = document.querySelector(".screen.active");
+  if (!active || active.id === "screen-splash") return;
+  state.resumeTo = active.id.replace("screen-", "");
+  state.splashDone = false;
+  runSplash();
 }
 
 /* Getting an intro to start when it can actually be seen is harder than it
@@ -242,7 +268,7 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "16:17";           // shown on the splash while this is in doubt
+const BUILD = "16:20";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -257,7 +283,9 @@ const INTRO_GAP_MS = 600;        // a pause this long means frames weren't being
                                  // Generous, so a stutter on a tired phone is not
                                  // mistaken for a reveal
 
-function startIntro(stage) {
+let introReplay = null, introReturnWired = false;
+
+function startIntro(stage, settleMs) {
   let restarts = 0;
 
   const lineEndsAt = () => {
@@ -301,7 +329,7 @@ function startIntro(stage) {
     requestAnimationFrame(tick);
   };
 
-  const arm = () => setTimeout(play, INTRO_SETTLE_MS);
+  const arm = () => setTimeout(play, settleMs);
 
   const whenVisible = () => {
     if (document.visibilityState === "hidden") {
@@ -316,14 +344,17 @@ function startIntro(stage) {
   };
 
   /* And whenever the app comes back to the front while the splash is still up,
-     start over: whatever played while it was away was played to nobody. */
-  document.addEventListener("visibilitychange", function onReturn() {
-    if (state.splashDone) {
-      document.removeEventListener("visibilitychange", onReturn);
-      return;
-    }
-    if (document.visibilityState === "visible") play(INTRO_REPLAY_BLANK_MS);
-  });
+     start over: whatever played while it was away was played to nobody. The
+     splash can be raised many times over a session, so this is wired once and
+     aimed at whichever intro is current. */
+  introReplay = play;
+  if (!introReturnWired) {
+    introReturnWired = true;
+    document.addEventListener("visibilitychange", () => {
+      if (state.splashDone || !introReplay) return;
+      if (document.visibilityState === "visible") introReplay(INTRO_REPLAY_BLANK_MS);
+    });
+  }
 
   if (document.readyState === "complete") whenVisible();
   else window.addEventListener("load", whenVisible, { once: true });
@@ -368,7 +399,10 @@ function runSplash() {
   stage.style.transform = "";
   stage.style.opacity = "";
 
-  startIntro(stage);
+  startIntro(stage, state.resumeTo ? 0 : INTRO_SETTLE_MS);
+
+  if (state.splashWired) return;
+  state.splashWired = true;
 
   let startY = null, dragged = 0;
 
@@ -396,8 +430,8 @@ function runSplash() {
   // and for anyone not swiping: the prompt, a scroll, or a key
   $("#splash-go").addEventListener("click", () => releaseStage(true));
   screen.addEventListener("wheel", (e) => { if (e.deltaY > 0) releaseStage(true); }, { passive: true });
-  document.addEventListener("keydown", function onKey(e) {
-    if (state.splashDone) { document.removeEventListener("keydown", onKey); return; }
+  document.addEventListener("keydown", (e) => {
+    if (state.splashDone) return;       // the splash can be raised again later
     if (["Enter", " ", "ArrowUp"].includes(e.key)) releaseStage(true);
   });
 }
@@ -1133,6 +1167,7 @@ function setWakeNote(text) {
 
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && state.tracking) keepAwake();
+  if (document.visibilityState === "hidden") raiseSplash();
 });
 window.addEventListener("focus", () => { if (state.tracking) keepAwake(); });
 
