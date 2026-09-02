@@ -45,6 +45,8 @@ html, body {
   padding: calc(var(--safe-top) + 28px) 20px var(--tabbar-space);
   overflow-y: auto;
 }
+/* Home scrolls under the docked button, so it needs room for it */
+#screen-home { padding-bottom: calc(var(--tabbar-space) + 84px); }
 
 .home-header h1 { font-size: 34px; letter-spacing: -0.5px; }
 .home-header h1::after { content: "."; color: var(--accent); }
@@ -659,3 +661,19 @@ html, body {
   white-space: nowrap;
 }
 .pin-tag.match { color: #ffd166; }
+
+
+/* ---------- docked start button ---------- */
+
+.start-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--safe-bottom) + var(--tabbar-h));
+  z-index: 2500;
+  padding: 14px 20px 12px;
+  background: linear-gradient(to top, var(--bg) 62%, rgba(13, 17, 23, 0));
+}
+.start-dock[hidden] { display: none; }
+.start-dock .following { margin: 0 0 8px; }
+.start-dock .btn-primary { width: 100%; }

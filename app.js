@@ -88,6 +88,7 @@ function show(id) {
   screen.classList.add("active");
   // a run, and a run's own page, get the whole screen
   $("#tabbar").hidden = !screen.classList.contains("tabbed");
+  $("#start-dock").hidden = id !== "home";
 }
 
 /* Tabs are the top level of the app; the run and detail screens sit on top of
@@ -258,8 +259,7 @@ function renderToday() {
 
 function renderFollowing() {
   const el = $("#following");
-  const id = activeRouteId();
-  const route = id && loadRoutes().find((r) => String(r.id) === id);
+  const route = resolveActiveRoute();
   if (!route) { el.hidden = true; return; }
   el.hidden = false;
   el.textContent = `Following ${route.name} · ${(route.meters / MI).toFixed(2)} mi`;
@@ -268,64 +268,74 @@ function renderFollowing() {
 /* Saved routes as pickable cards. When the plan asks for a set number of
    minutes today, the route whose estimated time lands closest gets flagged -
    a suggestion, not a rule. */
-function renderHomeRoutes() {
-  const block = $("#routes-block");
-  const list = $("#home-routes");
-  const routes = loadRoutes();
-  list.replaceChildren();
-  block.hidden = routes.length === 0;
-  if (!routes.length) return;
-
+function routeCard({ key, name, meters, subtitle, suggest }) {
   const { paceMs } = historyPace();
+  const miles = meters / MI;
+  const isActive = activeRouteId() === key;
+
+  const btn = document.createElement("button");
+  btn.className = "pin" + (isActive ? " on" : "");
+
+  const left = document.createElement("div");
+  const title = document.createElement("div");
+  title.className = "pin-name";
+  title.textContent = name;
+  const meta = document.createElement("div");
+  meta.className = "pin-meta";
+  meta.textContent = subtitle || `${miles.toFixed(2)} mi · about ${fmtDuration(miles * paceMs)}`;
+  left.append(title, meta);
+
+  const tag = document.createElement("span");
+  if (isActive) { tag.className = "pin-tag"; tag.textContent = "In use"; }
+  else if (suggest) { tag.className = "pin-tag match"; tag.textContent = "fits today"; }
+  btn.append(left, tag);
+
+  btn.addEventListener("click", () => {
+    setActiveRoute(isActive ? null : key);
+    renderHomeRoutes();
+    renderFollowing();
+  });
+  return btn;
+}
+
+/* Whichever of the offered routes lands closest to the minutes the plan asks
+   for today, as long as something is actually close. */
+function bestFitKey(candidates, paceMs) {
   const session = todaysSession();
-  const targetMin = session && session.minutes;
-
-  let bestId = null;
-  if (targetMin) {
-    let bestGap = Infinity;
-    for (const r of routes) {
-      const est = (r.meters / MI) * paceMs / 60000;
-      const gap = Math.abs(est - targetMin);
-      if (gap < bestGap) { bestGap = gap; bestId = r.id; }
-    }
-    if (bestGap > targetMin * 0.5) bestId = null;   // nothing close enough to suggest
+  const target = session && session.minutes;
+  if (!target) return null;
+  let bestKey = null, bestGap = Infinity;
+  for (const c of candidates) {
+    const gap = Math.abs((c.meters / MI) * paceMs / 60000 - target);
+    if (gap < bestGap) { bestGap = gap; bestKey = c.key; }
   }
+  return bestGap <= target * 0.5 ? bestKey : null;
+}
 
-  const active = activeRouteId();
-  for (const route of routes) {
-    const miles = route.meters / MI;
-    const est = miles * paceMs;
-    const isActive = String(route.id) === active;
+function renderHomeRoutes() {
+  const { paceMs } = historyPace();
+  const saved = loadRoutes().map((r) => ({
+    key: routeKey("route", r.id), name: r.name, meters: r.meters,
+  }));
+  const recent = recentRunRoutes().map((r) => ({
+    key: routeKey("run", r.id),
+    name: fmtDate(r.date).replace(/,[^,]*$/, ""),
+    meters: runDistance(r),
+    subtitle: `${(runDistance(r) / MI).toFixed(2)} mi · ran in ${fmtTime(r.durationMs)}`,
+  }));
 
-    const btn = document.createElement("button");
-    btn.className = "pin" + (isActive ? " on" : "");
+  // one suggestion across both lists, not one each
+  const best = bestFitKey([...saved, ...recent], paceMs);
 
-    const left = document.createElement("div");
-    const name = document.createElement("div");
-    name.className = "pin-name";
-    name.textContent = route.name;
-    const meta = document.createElement("div");
-    meta.className = "pin-meta";
-    meta.textContent = `${miles.toFixed(2)} mi · about ${fmtDuration(est)}`;
-    left.append(name, meta);
+  const savedList = $("#home-routes");
+  savedList.replaceChildren();
+  $("#routes-block").hidden = saved.length === 0;
+  for (const c of saved) savedList.appendChild(routeCard({ ...c, suggest: c.key === best }));
 
-    const tag = document.createElement("span");
-    if (isActive) {
-      tag.className = "pin-tag";
-      tag.textContent = "In use";
-    } else if (route.id === bestId) {
-      tag.className = "pin-tag match";
-      tag.textContent = "fits today";
-    }
-    btn.append(left, tag);
-
-    btn.addEventListener("click", () => {
-      setActiveRoute(isActive ? null : route.id);
-      renderHomeRoutes();
-      renderFollowing();
-    });
-    list.appendChild(btn);
-  }
+  const recentList = $("#recent-routes");
+  recentList.replaceChildren();
+  $("#recent-block").hidden = recent.length === 0;
+  for (const c of recent) recentList.appendChild(routeCard({ ...c, suggest: c.key === best }));
 }
 
 /* ---------- progress ----------
@@ -672,9 +682,7 @@ function startRun(demo) {
 // show the route you meant to run underneath the one you're running
 function drawPlannedRoute() {
   if (state.plannedLine) { state.plannedLine.remove(); state.plannedLine = null; }
-  const id = activeRouteId();
-  if (!id) return;
-  const route = loadRoutes().find((r) => String(r.id) === id);
+  const route = resolveActiveRoute();
   if (!route || !route.latlngs.length) return;
   state.plannedLine = L.polyline(route.latlngs, {
     color: "#8b949e", weight: 4, opacity: 0.65, dashArray: "6 8",
@@ -1391,8 +1399,40 @@ function saveRoutes(routes) {
   try { localStorage.setItem(ROUTES_KEY, JSON.stringify(routes)); } catch {}
 }
 
+/* A queued route is keyed by kind: "route:12" for one you drew, "run:34" for
+   one you've already run. Bare numbers are the older saved-route format. */
 function activeRouteId() {
-  try { return localStorage.getItem(ACTIVE_ROUTE_KEY) || null; } catch { return null; }
+  let key = null;
+  try { key = localStorage.getItem(ACTIVE_ROUTE_KEY); } catch { return null; }
+  if (!key) return null;
+  return /^\d+$/.test(key) ? `route:${key}` : key;
+}
+
+function routeKey(kind, id) { return `${kind}:${id}`; }
+
+// the queued route as something drawable, whichever kind it is
+function resolveActiveRoute() {
+  const key = activeRouteId();
+  if (!key) return null;
+  const [kind, id] = [key.slice(0, key.indexOf(":")), key.slice(key.indexOf(":") + 1)];
+
+  if (kind === "run") {
+    const run = loadRuns().find((r) => String(r.id) === id);
+    if (!run) return null;
+    return {
+      name: fmtDate(run.date).replace(/,[^,]*$/, ""),
+      meters: runDistance(run),
+      latlngs: runPath(run).flat().map((p) => [p.lat, p.lng]),
+    };
+  }
+  return loadRoutes().find((r) => String(r.id) === id) || null;
+}
+
+// the last few runs, offered as routes to repeat
+function recentRunRoutes(limit = 5) {
+  return loadRuns()
+    .filter((r) => runDistance(r) > 480 && runPath(r).flat().length > 3)
+    .slice(0, limit);
 }
 
 function setActiveRoute(id) {
@@ -1714,7 +1754,7 @@ function renderRouteList() {
 
   for (const route of routes) {
     const el = document.createElement("div");
-    el.className = "route-item" + (String(route.id) === active ? " active" : "");
+    el.className = "route-item" + (active === routeKey("route", route.id) ? " active" : "");
 
     const left = document.createElement("div");
     const name = document.createElement("div");
@@ -1732,17 +1772,18 @@ function renderRouteList() {
     const actions = document.createElement("div");
     actions.className = "route-item-actions";
     const use = document.createElement("button");
-    const isActive = String(route.id) === active;
+    const isActive = active === routeKey("route", route.id);
     use.textContent = isActive ? "In use" : "Use";
     if (isActive) use.classList.add("on");
-    use.addEventListener("click", () => setActiveRoute(isActive ? null : route.id));
+    use.addEventListener("click", () =>
+      setActiveRoute(isActive ? null : routeKey("route", route.id)));
     const del = document.createElement("button");
     del.textContent = "Delete";
     del.className = "danger";
     del.addEventListener("click", () => {
       if (!confirm(`Delete "${route.name}"?`)) return;
       saveRoutes(loadRoutes().filter((x) => x.id !== route.id));
-      if (String(route.id) === active) setActiveRoute(null);
+      if (active === routeKey("route", route.id)) setActiveRoute(null);
       renderRouteList();
     });
     actions.append(use, del);
