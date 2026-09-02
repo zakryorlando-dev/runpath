@@ -298,6 +298,18 @@
       the whole run.
     </p>
 
+    <h2 class="settings-sub">Backup</h2>
+    <div class="detail-actions-row">
+      <button id="btn-backup" class="btn-ghost small">Back up everything</button>
+      <button id="btn-restore" class="btn-ghost small">Restore</button>
+    </div>
+    <input type="file" id="backup-input" accept=".json,application/json" hidden>
+    <p class="setting-hint">
+      One file holding every run and saved route, to keep somewhere safe or
+      move to another phone. Restoring adds anything missing and leaves what
+      you already have alone. Your Strava keys are deliberately left out.
+    </p>
+
     <h2 class="settings-sub">Bring runs in</h2>
     <button id="btn-import" class="btn-ghost wide">Import GPX (watch / Strava)</button>
     <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden>

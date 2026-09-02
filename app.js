@@ -2124,6 +2124,85 @@ function forgetStrava() {
   segStatus("not connected");
 }
 
+/* ---------- backup ----------
+   Everything lives on one phone, so there needs to be a way off it. One file
+   with every run and route; restoring merges rather than replaces, so pulling
+   an old backup onto a phone that has since recorded more doesn't lose the
+   newer work. Strava credentials are left out on purpose - a file that moves
+   between devices and clouds is no place for a client secret. */
+
+const BACKUP_VERSION = 1;
+
+function buildBackup() {
+  return JSON.stringify({
+    app: "RunPath",
+    version: BACKUP_VERSION,
+    exported: new Date().toISOString(),
+    runs: loadRuns(),
+    routes: loadRoutes(),
+    prefs: state.prefs,
+  }, null, 1);
+}
+
+async function exportBackup() {
+  const runs = loadRuns(), routes = loadRoutes();
+  if (!runs.length && !routes.length) {
+    alert("There's nothing saved to back up yet.");
+    return;
+  }
+  const name = `runpath-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  const text = buildBackup();
+
+  for (const type of ["application/json", "text/plain"]) {
+    const file = new File([text], name, { type });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: name });
+        return;
+      } catch (err) {
+        if (err && err.name === "AbortError") return;
+      }
+    }
+  }
+  saveBlob(new Blob([text], { type: "application/json" }), name);
+}
+
+/* Merge, never clobber: anything already here wins, anything missing is added.
+   Returns what changed so it can be reported rather than happening silently. */
+function restoreBackup(text) {
+  let data;
+  try { data = JSON.parse(text); }
+  catch { throw new Error("that isn't a readable backup file"); }
+  if (!data || data.app !== "RunPath" || !Array.isArray(data.runs)) {
+    throw new Error("that doesn't look like a RunPath backup");
+  }
+
+  const runs = loadRuns();
+  const haveRun = new Set(runs.map((r) => String(r.id)));
+  let addedRuns = 0;
+  for (const run of data.runs) {
+    if (!run || haveRun.has(String(run.id))) continue;
+    runs.push(run);
+    haveRun.add(String(run.id));
+    addedRuns++;
+  }
+  runs.sort((a, b) => b.date - a.date);
+  saveRuns(runs);
+
+  const routes = loadRoutes();
+  const haveRoute = new Set(routes.map((r) => String(r.id)));
+  let addedRoutes = 0;
+  for (const route of data.routes || []) {
+    if (!route || haveRoute.has(String(route.id))) continue;
+    routes.push(route);
+    haveRoute.add(String(route.id));
+    addedRoutes++;
+  }
+  saveRoutes(routes);
+
+  return { addedRuns, addedRoutes, inFile: data.runs.length };
+}
+
 /* ---------- GPX import (runs recorded on a watch or another app) ---------- */
 
 function importGpxText(text) {
@@ -2231,6 +2310,24 @@ $("#btn-route-save").addEventListener("click", saveCurrentRoute);
 $("#btn-strava-connect").addEventListener("click", connectStrava);
 $("#btn-strava-manual").addEventListener("click", connectStravaManual);
 $("#btn-strava-forget").addEventListener("click", forgetStrava);
+$("#btn-backup").addEventListener("click", exportBackup);
+$("#btn-restore").addEventListener("click", () => $("#backup-input").click());
+$("#backup-input").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const r = restoreBackup(reader.result);
+      refreshHome();
+      alert(r.addedRuns || r.addedRoutes
+        ? `Restored ${r.addedRuns} run(s) and ${r.addedRoutes} route(s).`
+        : "Nothing new in that backup - everything in it was already here.");
+    } catch (err) { alert(`Couldn't restore: ${err.message}`); }
+  };
+  reader.readAsText(file);
+});
 $("#btn-import").addEventListener("click", () => $("#gpx-input").click());
 $("#gpx-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
