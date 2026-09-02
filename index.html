@@ -29,6 +29,7 @@
 
     <div class="home-actions">
       <button id="btn-start" class="btn-primary">Start Run</button>
+      <button id="btn-segments" class="btn-ghost">Segments near me</button>
       <button id="btn-import" class="btn-ghost">Import GPX (watch / Strava)</button>
       <input type="file" id="gpx-input" accept=".gpx,application/gpx+xml" hidden>
     </div>
@@ -147,6 +148,48 @@
           <button id="btn-gpx" class="btn-ghost small">Export GPX</button>
           <button id="btn-delete" class="btn-ghost small danger">Delete</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- NEARBY SEGMENTS -->
+  <section id="screen-segments" class="screen">
+    <div id="seg-map" class="map"></div>
+
+    <div class="seg-panel">
+      <div class="detail-head">
+        <button id="btn-seg-back" class="btn-ghost small">&larr; Back</button>
+        <span class="muted" id="seg-status"></span>
+      </div>
+
+      <div id="strava-connect" class="connect" hidden>
+        <p class="connect-lead">
+          Strava knows where people actually run. To read that, RunPath needs
+          your own Strava API app &mdash; free, and it takes a minute.
+        </p>
+        <ol class="connect-steps">
+          <li>Open <b>strava.com/settings/api</b> and create an app</li>
+          <li>Set <b>Authorization Callback Domain</b> to <b id="cb-domain">…</b></li>
+          <li>Paste its Client ID and Secret below</li>
+        </ol>
+        <input id="strava-id" class="field" inputmode="numeric" placeholder="Client ID" autocomplete="off">
+        <input id="strava-secret" class="field" type="password" placeholder="Client Secret" autocomplete="off">
+        <button id="btn-strava-connect" class="btn-primary">Connect Strava</button>
+        <details class="connect-alt">
+          <summary>Already have a refresh token?</summary>
+          <input id="strava-refresh" class="field" type="password" placeholder="Refresh token" autocomplete="off">
+          <button id="btn-strava-manual" class="btn-ghost small">Use this token</button>
+        </details>
+        <p class="connect-note">
+          Stored only on this phone, never in the app's code. Don't paste these
+          anywhere else.
+        </p>
+      </div>
+
+      <div id="seg-list" class="seg-list"></div>
+      <div class="seg-foot">
+        <button id="btn-strava-forget" class="link-btn" hidden>Disconnect Strava</button>
+        <span class="powered">Powered by Strava</span>
       </div>
     </div>
   </section>

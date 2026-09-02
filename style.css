@@ -357,3 +357,64 @@ html, body {
 .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(0.82) contrast(1) saturate(0.35);
 }
+
+
+/* ---------- nearby segments ---------- */
+
+#screen-segments { position: relative; }
+
+.seg-panel {
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  padding: 16px 20px calc(var(--safe-bottom) + 14px);
+  max-height: 58vh;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.seg-list { display: flex; flex-direction: column; gap: 8px; }
+
+.seg-item {
+  background: #12171f;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+}
+.seg-item.active { border-color: var(--accent); }
+.seg-name { font-size: 15px; font-weight: 700; }
+.seg-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.seg-dist { color: var(--accent); font-weight: 700; font-size: 15px; white-space: nowrap; }
+
+.connect-lead { color: var(--text); font-size: 14px; line-height: 1.45; margin-bottom: 10px; }
+.connect-steps { color: var(--muted); font-size: 13px; line-height: 1.6; margin: 0 0 14px 18px; }
+.connect-steps b { color: var(--text); }
+
+.field {
+  width: 100%;
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 12px;
+  font-size: 15px;
+  margin-bottom: 10px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.connect-alt { margin-top: 12px; }
+.connect-alt summary { color: var(--muted); font-size: 13px; cursor: pointer; margin-bottom: 8px; }
+.connect-note { color: var(--muted); font-size: 12px; line-height: 1.5; margin-top: 12px; }
+
+.seg-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+}
+.powered { color: #fc5200; font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }

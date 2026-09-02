@@ -22,6 +22,8 @@ const state = {
   runLine: null,
   runMarker: null,
   detailMap: null,
+  segMap: null,
+  segLines: [],
   currentRun: null,   // run object shown on detail screen
   wakeLock: null,
   wakeTimer: null,
@@ -1149,6 +1151,249 @@ async function snapCurrentRun() {
   showDetail(state.currentRun);
 }
 
+/* ---------- nearby segments (Strava) ----------
+   Strava's own heatmap can't be used outside their app, but their API will
+   hand over the popular running segments in a bounding box, which answers the
+   same question: where do people actually run around here.
+
+   It needs the user's own free API app. Strava has no browser-safe OAuth flow
+   - exchanging a code needs the client secret - so the credentials live in
+   this phone's storage only, never in the deployed code. */
+
+const STRAVA_KEY = "runpath.strava";
+
+function loadStrava() {
+  try { return JSON.parse(localStorage.getItem(STRAVA_KEY)) || {}; }
+  catch { return {}; }
+}
+
+function saveStrava(next) {
+  try { localStorage.setItem(STRAVA_KEY, JSON.stringify(next)); } catch {}
+}
+
+function stravaRedirectUri() {
+  return location.origin + location.pathname;
+}
+
+function stravaConnected() {
+  const s = loadStrava();
+  return !!(s.refreshToken && s.clientId && s.clientSecret);
+}
+
+async function stravaToken() {
+  const s = loadStrava();
+  if (!s.refreshToken) throw new Error("not connected");
+  if (s.accessToken && s.expiresAt && Date.now() < s.expiresAt - 60000) {
+    return s.accessToken;
+  }
+  const res = await fetch("https://www.strava.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: s.clientId,
+      client_secret: s.clientSecret,
+      grant_type: "refresh_token",
+      refresh_token: s.refreshToken,
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok || !data.access_token) {
+    throw new Error(data.message || "Strava rejected the saved credentials");
+  }
+  saveStrava({
+    ...s,
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || s.refreshToken,
+    expiresAt: data.expires_at * 1000,
+  });
+  return data.access_token;
+}
+
+// finish the OAuth round trip if Strava has just sent us back with a code
+async function stravaHandleRedirect() {
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  if (!code) return false;
+
+  const s = loadStrava();
+  history.replaceState({}, "", stravaRedirectUri());     // don't leave it in the URL
+  if (!s.clientId || !s.clientSecret) return false;
+
+  try {
+    const res = await fetch("https://www.strava.com/oauth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        client_id: s.clientId,
+        client_secret: s.clientSecret,
+        code,
+        grant_type: "authorization_code",
+      }),
+    });
+    const data = await res.json();
+    if (!data.refresh_token) throw new Error(data.message || "no token returned");
+    saveStrava({
+      ...s,
+      refreshToken: data.refresh_token,
+      accessToken: data.access_token,
+      expiresAt: data.expires_at * 1000,
+    });
+    return true;
+  } catch (err) {
+    alert(`Couldn't finish connecting to Strava: ${err.message}`);
+    return false;
+  }
+}
+
+// Google's encoded polyline, which is how Strava returns segment shapes
+function decodePolyline(str) {
+  const out = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < str.length) {
+    let shift = 0, result = 0, b;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = str.charCodeAt(i++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+    out.push([lat / 1e5, lng / 1e5]);
+  }
+  return out;
+}
+
+async function fetchSegments(lat, lng, radiusM = 2500) {
+  const token = await stravaToken();
+  const dLat = radiusM / 110540;
+  const dLng = radiusM / (111320 * Math.cos((lat * Math.PI) / 180));
+  const bounds = [lat - dLat, lng - dLng, lat + dLat, lng + dLng]
+    .map((n) => n.toFixed(5)).join(",");
+  const url = `https://www.strava.com/api/v3/segments/explore?bounds=${bounds}&activity_type=running`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || `Strava error ${res.status}`);
+  return data.segments || [];
+}
+
+function segStatus(text) { $("#seg-status").textContent = text; }
+
+function ensureSegMap() {
+  if (state.segMap) return state.segMap;
+  state.segMap = L.map("seg-map", { zoomControl: false });
+  L.tileLayer(TILE_URL, { attribution: TILE_ATTR, maxZoom: 19 }).addTo(state.segMap);
+  return state.segMap;
+}
+
+function renderSegments(segments) {
+  const map = ensureSegMap();
+  (state.segLines || []).forEach((l) => l.remove());
+  state.segLines = [];
+
+  const list = $("#seg-list");
+  list.innerHTML = "";
+  if (!segments.length) {
+    list.innerHTML = `<p class="muted">No running segments mapped around here.</p>`;
+    return;
+  }
+
+  const bounds = [];
+  segments.forEach((seg, i) => {
+    const pts = decodePolyline(seg.points);
+    if (!pts.length) return;
+    bounds.push(...pts);
+    const line = L.polyline(pts, { color: "#fc5200", weight: 4, opacity: 0.85 }).addTo(map);
+    state.segLines.push(line);
+
+    const el = document.createElement("div");
+    el.className = "seg-item";
+    const miles = (seg.distance / MI).toFixed(2);
+    const grade = seg.avg_grade != null ? `${seg.avg_grade.toFixed(1)}% grade` : "";
+    const climb = seg.elev_difference != null
+      ? `${Math.round(seg.elev_difference * 3.28084)} ft climb` : "";
+    el.innerHTML =
+      `<div><div class="seg-name">${seg.name}</div>` +
+      `<div class="seg-meta">${[grade, climb].filter(Boolean).join(" &middot; ")}</div></div>` +
+      `<div class="seg-dist">${miles} mi</div>`;
+    el.addEventListener("click", () => {
+      document.querySelectorAll(".seg-item").forEach((n) => n.classList.remove("active"));
+      el.classList.add("active");
+      state.segLines.forEach((l, j) => l.setStyle({ weight: j === i ? 7 : 4, opacity: j === i ? 1 : 0.5 }));
+      map.fitBounds(line.getBounds(), { padding: [40, 40] });
+    });
+    list.appendChild(el);
+  });
+
+  setTimeout(() => {
+    map.invalidateSize();
+    if (bounds.length) map.fitBounds(L.latLngBounds(bounds), { padding: [30, 30] });
+  }, 50);
+}
+
+function showConnect(show) {
+  $("#strava-connect").hidden = !show;
+  $("#btn-strava-forget").hidden = show;
+  $("#cb-domain").textContent = location.hostname;
+  if (show) $("#seg-list").innerHTML = "";
+}
+
+async function openSegments() {
+  show("segments");
+  ensureSegMap();
+  if (!stravaConnected()) {
+    showConnect(true);
+    segStatus("not connected");
+    return;
+  }
+  showConnect(false);
+  segStatus("finding you…");
+  try {
+    const pos = await new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: false, timeout: 15000, maximumAge: 300000,
+      })
+    );
+    state.segMap.setView([pos.coords.latitude, pos.coords.longitude], 14);
+    segStatus("asking Strava…");
+    const segments = await fetchSegments(pos.coords.latitude, pos.coords.longitude);
+    renderSegments(segments);
+    segStatus(`${segments.length} nearby`);
+  } catch (err) {
+    segStatus("");
+    $("#seg-list").innerHTML =
+      `<p class="muted">Couldn't load segments: ${err.message || err}</p>`;
+  }
+}
+
+function connectStrava() {
+  const clientId = $("#strava-id").value.trim();
+  const clientSecret = $("#strava-secret").value.trim();
+  if (!clientId || !clientSecret) { alert("Both the Client ID and Secret are needed."); return; }
+  saveStrava({ ...loadStrava(), clientId, clientSecret });
+  const url = "https://www.strava.com/oauth/authorize" +
+    `?client_id=${encodeURIComponent(clientId)}` +
+    `&response_type=code&redirect_uri=${encodeURIComponent(stravaRedirectUri())}` +
+    `&approval_prompt=auto&scope=read`;
+  location.href = url;
+}
+
+function connectStravaManual() {
+  const clientId = $("#strava-id").value.trim();
+  const clientSecret = $("#strava-secret").value.trim();
+  const refreshToken = $("#strava-refresh").value.trim();
+  if (!clientId || !clientSecret || !refreshToken) {
+    alert("Client ID, Secret and refresh token are all needed.");
+    return;
+  }
+  saveStrava({ clientId, clientSecret, refreshToken });
+  openSegments();
+}
+
+function forgetStrava() {
+  if (!confirm("Remove your Strava credentials from this phone?")) return;
+  try { localStorage.removeItem(STRAVA_KEY); } catch {}
+  showConnect(true);
+  segStatus("not connected");
+}
+
 /* ---------- GPX import (runs recorded on a watch or another app) ---------- */
 
 function importGpxText(text) {
@@ -1241,6 +1486,11 @@ function startDemoPlayback() {
 /* ---------- wire up ---------- */
 
 $("#btn-start").addEventListener("click", () => startRun(false));
+$("#btn-segments").addEventListener("click", openSegments);
+$("#btn-seg-back").addEventListener("click", () => { refreshHome(); show("home"); });
+$("#btn-strava-connect").addEventListener("click", connectStrava);
+$("#btn-strava-manual").addEventListener("click", connectStravaManual);
+$("#btn-strava-forget").addEventListener("click", forgetStrava);
 $("#btn-import").addEventListener("click", () => $("#gpx-input").click());
 $("#gpx-input").addEventListener("change", (e) => {
   const file = e.target.files[0];
@@ -1264,6 +1514,8 @@ $("#btn-gpx").addEventListener("click", exportGpx);
 $("#btn-delete").addEventListener("click", deleteCurrentRun);
 
 setDimPref(loadDimPref());
+// coming back from Strava's approval page lands here with a code in the URL
+stravaHandleRedirect().then((connected) => { if (connected) openSegments(); });
 migrateRuns();
 refreshHome();
 loadPlan().then((plan) => { state.plan = plan; if (plan) refreshHome(); });
