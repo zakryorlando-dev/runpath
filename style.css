@@ -859,6 +859,21 @@ html, body {
 
 .splash { text-align: center; max-width: 380px; }
 
+/* The whole intro's clock, in one place. */
+:root {
+  --sp-dot:         60000ms;
+  --sp-line:       288000ms;
+  --sp-line-delay:  54000ms;
+  --sp-end:         60000ms;
+  --sp-end-delay:  334000ms;
+  --sp-words:       16000ms;
+  --sp-title-delay: 400000ms;
+  --sp-tag-delay:  420000ms;
+  --sp-go:          12000ms;
+  --sp-go-delay:   440000ms;
+  --sp-pulse-delay: 453000ms;
+}
+
 .splash-route { width: 100%; max-width: 300px; height: auto; margin-bottom: 22px; }
 
 /* The dot drops in and settles, the route draws itself over three seconds,
@@ -870,17 +885,17 @@ html, body {
   stroke-dashoffset: 320;
 }
 .playing .route-line {
-  animation: draw-route 144000ms cubic-bezier(0.4, 0.03, 0.4, 1) 27000ms forwards;
+  animation: draw-route var(--sp-line) cubic-bezier(0.4, 0.03, 0.4, 1) var(--sp-line-delay) forwards;
 }
 .route-start, .route-end { fill: var(--accent); opacity: 0; }
-.playing .route-start { animation: drop-bounce 30000ms cubic-bezier(0.3, 0, 0.5, 1) forwards; }
+.playing .route-start { animation: drop-bounce var(--sp-dot) cubic-bezier(0.3, 0, 0.5, 1) forwards; }
 .route-end {
   fill: #fff;
   stroke: var(--accent);
   stroke-width: 3;
 }
 .playing .route-end {
-  animation: drop-land 30000ms cubic-bezier(0.3, 0, 0.4, 1) 167000ms forwards;
+  animation: drop-land var(--sp-end) cubic-bezier(0.3, 0, 0.4, 1) var(--sp-end-delay) forwards;
 }
 
 .splash-title {
@@ -888,7 +903,7 @@ html, body {
   letter-spacing: -1px;
   opacity: 0;
 }
-.playing .splash-title { animation: rise 8000ms ease-out 200000ms forwards; }
+.playing .splash-title { animation: rise var(--sp-words) ease-out var(--sp-title-delay) forwards; }
 .splash-title .dot { color: var(--accent); }
 
 .splash-tagline {
@@ -897,7 +912,7 @@ html, body {
   margin-top: 6px;
   opacity: 0;
 }
-.playing .splash-tagline { animation: rise 8000ms ease-out 210000ms forwards; }
+.playing .splash-tagline { animation: rise var(--sp-words) ease-out var(--sp-tag-delay) forwards; }
 
 /* The screen waits now, so something has to say why. Breathes rather than
    blinks - enough to catch the eye without nagging. */
@@ -922,15 +937,15 @@ html, body {
   opacity: 0;
 }
 .playing .splash-go {
-  animation: fade-in 6000ms ease-out 220000ms forwards,
-             breathe 2800ms ease-in-out 226500ms infinite;
+  animation: fade-in var(--sp-go) ease-out var(--sp-go-delay) forwards,
+             breathe 2800ms ease-in-out var(--sp-pulse-delay) infinite;
 }
 .splash-go .chev {
   width: 26px;
   height: 26px;
   margin-bottom: 4px;
 }
-.playing .splash-go .chev { animation: chev-drift 2800ms ease-in-out 226500ms infinite; }
+.playing .splash-go .chev { animation: chev-drift 2800ms ease-in-out var(--sp-pulse-delay) infinite; }
 .go-line { line-height: 1.5; }
 
 @keyframes breathe { 0%, 100% { opacity: 1; } 50% { opacity: 0.32; } }
@@ -964,13 +979,11 @@ html, body {
    still arrives in order, it just fades instead of travelling, and the line
    appears whole rather than drawing itself across the screen. */
 @media (prefers-reduced-motion: reduce) {
-  .route-line { stroke-dashoffset: 0; opacity: 0; }
-  .playing .route-line { animation: fade-in 600ms ease-out forwards; }
-  .playing .route-start { animation: fade-in 400ms ease-out forwards; }
-  .playing .route-end { animation: fade-in 400ms ease-out 500ms forwards; }
-  .playing .splash-title { animation: fade-in 500ms ease-out 800ms forwards; }
-  .playing .splash-tagline { animation: fade-in 500ms ease-out 950ms forwards; }
-  .playing .splash-go { animation: fade-in 500ms ease-out 1300ms forwards; }
+  .playing .route-start { animation: fade-in var(--sp-dot) ease-out forwards; }
+  .playing .route-end { animation: fade-in var(--sp-end) ease-out var(--sp-end-delay) forwards; }
+  .playing .splash-title { animation: fade-in var(--sp-words) ease-out var(--sp-title-delay) forwards; }
+  .playing .splash-tagline { animation: fade-in var(--sp-words) ease-out var(--sp-tag-delay) forwards; }
+  .playing .splash-go { animation: fade-in var(--sp-go) ease-out var(--sp-go-delay) forwards; }
   .playing .splash-go .chev { animation: none; }
   .splash-stage.settling, .splash-stage.leaving { transition-duration: 200ms; }
 }
