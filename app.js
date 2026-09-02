@@ -224,6 +224,110 @@ function renderPlan(week) {
   $("#plan-note").textContent = parts.join(" \u00b7 ");   // plain text, never markup
 }
 
+/* ---------- today's session, and routes pinned to Home ----------
+   What the plan asks for today, and the saved routes that could serve it, so
+   heading out is one decision rather than a trip through two other tabs. */
+
+// minutes the plan wants today, or null on a rest day
+function todaysSession(date = new Date()) {
+  const wk = planWeekFor(date);
+  if (!wk || !Array.isArray(state.plan.runDays)) return null;
+  const slot = state.plan.runDays.indexOf(date.getDay());
+  if (slot < 0) return null;
+  const mins = Array.isArray(wk.dayMinutes) ? wk.dayMinutes[slot] : null;
+  const isLong = slot === state.plan.runDays.length - 1;
+  return { minutes: mins, isLong, week: wk };
+}
+
+function renderToday() {
+  const block = $("#today-block");
+  const session = todaysSession();
+  if (!session) {
+    if (!state.plan) { block.hidden = true; return; }
+    block.hidden = false;
+    $("#today-session").textContent = "Rest or strength — no run scheduled";
+    return;
+  }
+  block.hidden = false;
+  const bits = [];
+  if (session.minutes) bits.push(`${session.minutes} min`);
+  if (session.isLong) bits.push("long run");
+  if (session.week.note) bits.push(session.week.note);
+  $("#today-session").textContent = bits.join(" · ") || "Run day";
+}
+
+function renderFollowing() {
+  const el = $("#following");
+  const id = activeRouteId();
+  const route = id && loadRoutes().find((r) => String(r.id) === id);
+  if (!route) { el.hidden = true; return; }
+  el.hidden = false;
+  el.textContent = `Following ${route.name} · ${(route.meters / MI).toFixed(2)} mi`;
+}
+
+/* Saved routes as pickable cards. When the plan asks for a set number of
+   minutes today, the route whose estimated time lands closest gets flagged -
+   a suggestion, not a rule. */
+function renderHomeRoutes() {
+  const block = $("#routes-block");
+  const list = $("#home-routes");
+  const routes = loadRoutes();
+  list.replaceChildren();
+  block.hidden = routes.length === 0;
+  if (!routes.length) return;
+
+  const { paceMs } = historyPace();
+  const session = todaysSession();
+  const targetMin = session && session.minutes;
+
+  let bestId = null;
+  if (targetMin) {
+    let bestGap = Infinity;
+    for (const r of routes) {
+      const est = (r.meters / MI) * paceMs / 60000;
+      const gap = Math.abs(est - targetMin);
+      if (gap < bestGap) { bestGap = gap; bestId = r.id; }
+    }
+    if (bestGap > targetMin * 0.5) bestId = null;   // nothing close enough to suggest
+  }
+
+  const active = activeRouteId();
+  for (const route of routes) {
+    const miles = route.meters / MI;
+    const est = miles * paceMs;
+    const isActive = String(route.id) === active;
+
+    const btn = document.createElement("button");
+    btn.className = "pin" + (isActive ? " on" : "");
+
+    const left = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "pin-name";
+    name.textContent = route.name;
+    const meta = document.createElement("div");
+    meta.className = "pin-meta";
+    meta.textContent = `${miles.toFixed(2)} mi · about ${fmtDuration(est)}`;
+    left.append(name, meta);
+
+    const tag = document.createElement("span");
+    if (isActive) {
+      tag.className = "pin-tag";
+      tag.textContent = "In use";
+    } else if (route.id === bestId) {
+      tag.className = "pin-tag match";
+      tag.textContent = "fits today";
+    }
+    btn.append(left, tag);
+
+    btn.addEventListener("click", () => {
+      setActiveRoute(isActive ? null : route.id);
+      renderHomeRoutes();
+      renderFollowing();
+    });
+    list.appendChild(btn);
+  }
+}
+
 /* ---------- progress ----------
    Weekly totals, a twelve-week bar chart and a month calendar, so a run has
    somewhere to land beyond the history list. */
@@ -333,6 +437,9 @@ function drawCalendar(runs) {
 function refreshHome() {
   renderHistory();
   renderProgress();
+  renderToday();
+  renderHomeRoutes();
+  renderFollowing();
 }
 
 function renderProgress() {
@@ -1294,6 +1401,8 @@ function setActiveRoute(id) {
     else localStorage.removeItem(ACTIVE_ROUTE_KEY);
   } catch {}
   renderRouteList();
+  renderHomeRoutes();
+  renderFollowing();
 }
 
 /* Your typical pace, taken as the median of real runs so one crawl or one

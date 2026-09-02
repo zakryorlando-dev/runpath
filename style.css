@@ -589,3 +589,73 @@ html, body {
   padding-bottom: var(--tabbar-space);
   max-height: 62vh;
 }
+
+
+/* ---------- today's session + pinned routes on Home ---------- */
+
+.following {
+  color: var(--accent);
+  font-size: 13px;
+  text-align: center;
+  margin-top: 10px;
+}
+.following[hidden] { display: none; }
+
+.today-block {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 26px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.today-block[hidden] { display: none; }
+.today-label {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.today-session { font-size: 15px; font-weight: 600; }
+
+.routes-block { margin-top: 26px; }
+.routes-block[hidden] { display: none; }
+.routes-block h2 {
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+.routes-block .setting-hint { margin-top: 10px; margin-bottom: 0; }
+
+.pin {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  color: var(--text);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pin.on { border-color: var(--accent); }
+.pin-name { font-size: 15px; font-weight: 700; }
+.pin-meta { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.pin-tag {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+.pin-tag.match { color: #ffd166; }

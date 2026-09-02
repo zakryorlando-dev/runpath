@@ -2,27 +2,216 @@
   "name": "MLK Freedom Run half marathon",
   "startMonday": "2026-08-31",
   "raceDate": "2027-01-17",
-  "runDays": [2, 4, 6],
+  "runDays": [
+    2,
+    4,
+    6
+  ],
   "weeks": [
-    { "targetMinutes": 57,  "longRunMinutes": 25,  "note": "run/walk 1:1" },
-    { "targetMinutes": 72,  "longRunMinutes": 30,  "note": "run/walk 2:1" },
-    { "targetMinutes": 83,  "longRunMinutes": 35,  "note": "run/walk 3:1" },
-    { "targetMinutes": 90,  "longRunMinutes": 40,  "note": "run/walk 4:1" },
-    { "targetMinutes": 85,  "longRunMinutes": 45,  "note": "continuous running starts" },
-    { "targetMinutes": 100, "longRunMinutes": 50 },
-    { "targetMinutes": 115, "longRunMinutes": 55 },
-    { "targetMinutes": 120, "longRunMinutes": 60,  "longRunMiles": 5.75 },
-    { "targetMinutes": 130, "longRunMinutes": 65,  "longRunMiles": 6.5 },
-    { "targetMinutes": 140, "longRunMinutes": 70,  "longRunMiles": 7 },
-    { "targetMinutes": 155, "longRunMinutes": 80,  "longRunMiles": 8, "note": "strides on Tue" },
-    { "targetMinutes": 95,  "longRunMinutes": 45,  "longRunMiles": 4.5, "note": "cutback week" },
-    { "targetMinutes": 170, "longRunMinutes": 90,  "longRunMiles": 9 },
-    { "targetMinutes": 185, "longRunMinutes": 100, "longRunMiles": 10, "note": "strides on Tue" },
-    { "targetMinutes": 180, "longRunMinutes": 105, "longRunMiles": 10.75, "note": "peak long run" },
-    { "targetMinutes": 140, "longRunMinutes": 75,  "longRunMiles": 7.5, "note": "taper" },
-    { "targetMinutes": 115, "longRunMinutes": 60,  "longRunMiles": 6, "note": "taper" },
-    { "targetMinutes": 85,  "longRunMinutes": 40,  "longRunMiles": 4, "note": "taper" },
-    { "targetMinutes": 55,  "longRunMinutes": 20,  "note": "taper — shakeout Sat" },
-    { "targetMinutes": 45,  "longRunMiles": 13.1,  "note": "race week — start 3 mi slower than it feels" }
+    {
+      "targetMinutes": 57,
+      "longRunMinutes": 25,
+      "note": "run/walk 1:1",
+      "dayMinutes": [
+        16,
+        16,
+        25
+      ]
+    },
+    {
+      "targetMinutes": 72,
+      "longRunMinutes": 30,
+      "note": "run/walk 2:1",
+      "dayMinutes": [
+        21,
+        21,
+        30
+      ]
+    },
+    {
+      "targetMinutes": 83,
+      "longRunMinutes": 35,
+      "note": "run/walk 3:1",
+      "dayMinutes": [
+        24,
+        24,
+        35
+      ]
+    },
+    {
+      "targetMinutes": 90,
+      "longRunMinutes": 40,
+      "note": "run/walk 4:1",
+      "dayMinutes": [
+        25,
+        25,
+        40
+      ]
+    },
+    {
+      "targetMinutes": 85,
+      "longRunMinutes": 45,
+      "note": "continuous running starts",
+      "dayMinutes": [
+        20,
+        20,
+        45
+      ]
+    },
+    {
+      "targetMinutes": 100,
+      "longRunMinutes": 50,
+      "dayMinutes": [
+        25,
+        25,
+        50
+      ]
+    },
+    {
+      "targetMinutes": 115,
+      "longRunMinutes": 55,
+      "dayMinutes": [
+        30,
+        30,
+        55
+      ]
+    },
+    {
+      "targetMinutes": 120,
+      "longRunMinutes": 60,
+      "longRunMiles": 5.75,
+      "dayMinutes": [
+        30,
+        30,
+        60
+      ]
+    },
+    {
+      "targetMinutes": 130,
+      "longRunMinutes": 65,
+      "longRunMiles": 6.5,
+      "dayMinutes": [
+        30,
+        35,
+        65
+      ]
+    },
+    {
+      "targetMinutes": 140,
+      "longRunMinutes": 70,
+      "longRunMiles": 7,
+      "dayMinutes": [
+        35,
+        35,
+        70
+      ]
+    },
+    {
+      "targetMinutes": 155,
+      "longRunMinutes": 80,
+      "longRunMiles": 8,
+      "note": "strides on Tue",
+      "dayMinutes": [
+        35,
+        40,
+        80
+      ]
+    },
+    {
+      "targetMinutes": 95,
+      "longRunMinutes": 45,
+      "longRunMiles": 4.5,
+      "note": "cutback week",
+      "dayMinutes": [
+        25,
+        25,
+        45
+      ]
+    },
+    {
+      "targetMinutes": 170,
+      "longRunMinutes": 90,
+      "longRunMiles": 9,
+      "dayMinutes": [
+        40,
+        40,
+        90
+      ]
+    },
+    {
+      "targetMinutes": 185,
+      "longRunMinutes": 100,
+      "longRunMiles": 10,
+      "note": "strides on Tue",
+      "dayMinutes": [
+        40,
+        45,
+        100
+      ]
+    },
+    {
+      "targetMinutes": 180,
+      "longRunMinutes": 105,
+      "longRunMiles": 10.75,
+      "note": "peak long run",
+      "dayMinutes": [
+        35,
+        40,
+        105
+      ]
+    },
+    {
+      "targetMinutes": 140,
+      "longRunMinutes": 75,
+      "longRunMiles": 7.5,
+      "note": "taper",
+      "dayMinutes": [
+        30,
+        35,
+        75
+      ]
+    },
+    {
+      "targetMinutes": 115,
+      "longRunMinutes": 60,
+      "longRunMiles": 6,
+      "note": "taper",
+      "dayMinutes": [
+        25,
+        30,
+        60
+      ]
+    },
+    {
+      "targetMinutes": 85,
+      "longRunMinutes": 40,
+      "longRunMiles": 4,
+      "note": "taper",
+      "dayMinutes": [
+        25,
+        20,
+        40
+      ]
+    },
+    {
+      "targetMinutes": 55,
+      "longRunMinutes": 20,
+      "note": "taper \u2014 shakeout Sat",
+      "dayMinutes": [
+        20,
+        15,
+        20
+      ]
+    },
+    {
+      "targetMinutes": 45,
+      "longRunMiles": 13.1,
+      "note": "race week \u2014 start 3 mi slower than it feels",
+      "dayMinutes": [
+        20,
+        15,
+        10
+      ]
+    }
   ]
 }
