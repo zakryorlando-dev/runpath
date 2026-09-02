@@ -1303,16 +1303,24 @@ function renderSegments(segments) {
     const line = L.polyline(pts, { color: "#fc5200", weight: 4, opacity: 0.85 }).addTo(map);
     state.segLines.push(line);
 
-    const el = document.createElement("div");
-    el.className = "seg-item";
-    const miles = (seg.distance / MI).toFixed(2);
     const grade = seg.avg_grade != null ? `${seg.avg_grade.toFixed(1)}% grade` : "";
     const climb = seg.elev_difference != null
       ? `${Math.round(seg.elev_difference * 3.28084)} ft climb` : "";
-    el.innerHTML =
-      `<div><div class="seg-name">${seg.name}</div>` +
-      `<div class="seg-meta">${[grade, climb].filter(Boolean).join(" &middot; ")}</div></div>` +
-      `<div class="seg-dist">${miles} mi</div>`;
+
+    const el = document.createElement("div");
+    el.className = "seg-item";
+    const left = document.createElement("div");
+    const name = document.createElement("div");
+    name.className = "seg-name";
+    name.textContent = seg.name || "Unnamed segment";   // never as markup
+    const meta = document.createElement("div");
+    meta.className = "seg-meta";
+    meta.textContent = [grade, climb].filter(Boolean).join(" \u00b7 ");
+    left.append(name, meta);
+    const dist = document.createElement("div");
+    dist.className = "seg-dist";
+    dist.textContent = `${(seg.distance / MI).toFixed(2)} mi`;
+    el.append(left, dist);
     el.addEventListener("click", () => {
       document.querySelectorAll(".seg-item").forEach((n) => n.classList.remove("active"));
       el.classList.add("active");
@@ -1358,8 +1366,10 @@ async function openSegments() {
     segStatus(`${segments.length} nearby`);
   } catch (err) {
     segStatus("");
-    $("#seg-list").innerHTML =
-      `<p class="muted">Couldn't load segments: ${err.message || err}</p>`;
+    const p = document.createElement("p");
+    p.className = "muted";
+    p.textContent = `Couldn't load segments: ${err.message || err}`;
+    $("#seg-list").replaceChildren(p);
   }
 }
 
