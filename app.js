@@ -242,7 +242,7 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "16:09";           // shown on the splash while this is in doubt
+const BUILD = "16:17";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -331,6 +331,16 @@ function startIntro(stage) {
 
 /* The dash pattern has to be the length of the line it is hiding, and the only
    thing that knows that is the path itself. */
+function measureWordmark() {
+  const mark = document.querySelector("#wordmark");
+  const rest = document.querySelector("#wordmark-rest");
+  if (!mark || !rest) return;
+  /* The row is centred with "unpath" in it, so the R sits half a word to the
+     left of centre. Push the row right by that half to open on a centred R. */
+  const half = Math.round((rest.offsetWidth + 3) / 2);
+  mark.style.setProperty("--wm-shift", half + "px");
+}
+
 function measureRoute() {
   const path = document.querySelector(".route-line");
   if (!path || !path.getTotalLength) return;
@@ -347,6 +357,10 @@ function runSplash() {
   show("splash");
 
   measureRoute();
+  measureWordmark();
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(measureWordmark);   // the word's width settles late
+  }
 
   const screen = document.querySelector("#screen-splash");
   const stage = splashStage();

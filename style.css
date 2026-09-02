@@ -861,32 +861,71 @@ html, body {
 
 /* The whole intro's clock, in one place. */
 :root {
-  --sp-dot:           210ms;
-  --sp-line:         1860ms;
-  --sp-line-delay:    360ms;
-  --sp-end:           210ms;
-  --sp-end-delay:    2160ms;
-  --sp-words:         240ms;
-  --sp-title-delay:  2520ms;
-  --sp-tag-delay:    2640ms;
-  --sp-go:            240ms;
-  --sp-go-delay:     2760ms;
-  --sp-pulse-delay:  3000ms;
+  --sp-dot:           250ms;
+  --sp-line:         1800ms;
+  --sp-line-delay:    350ms;
+  --sp-end:           250ms;
+  --sp-end-delay:    2050ms;
+  --sp-move:          550ms;   /* the R shrinking into place and sliding left */
+  --sp-move-delay:   2450ms;
+  --sp-word:          500ms;   /* "unpath" arriving in the space it left */
+  --sp-word-delay:   2600ms;
+  --sp-words:         450ms;
+  --sp-title-delay:  3150ms;
+  --sp-tag-delay:    3350ms;
+  --sp-go:            350ms;
+  --sp-go-delay:     3650ms;
+  --sp-pulse-delay:  4000ms;
+}
+
+/* The R is drawn big and alone in the middle of the screen, then shrinks into
+   its place as the first letter of the name. It is only ever one element: the
+   zoom is what makes it a mark, and dropping the zoom makes it a letter.
+   --wm-shift is written by the app from the measured width of "unpath". */
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  margin-bottom: 26px;
+  transform: translateX(var(--wm-shift, 0px));
+}
+.playing .wordmark {
+  animation: wordmark-settle var(--sp-move) cubic-bezier(0.3, 0, 0.2, 1)
+             var(--sp-move-delay) forwards;
 }
 
 .splash-route {
-  width: 100%;
-  max-width: 168px;
-  height: auto;
-  margin-bottom: 22px;
+  height: 78px;
+  width: auto;
   overflow: visible;          /* the dots are far larger than the frame on the way in */
+  transform: scale(var(--mark-zoom, 2.2));
+  transform-origin: center;
 }
+.playing .splash-route {
+  animation: mark-settle var(--sp-move) cubic-bezier(0.3, 0, 0.2, 1)
+             var(--sp-move-delay) forwards;
+}
+
+.wordmark-rest {
+  font-size: 56px;
+  font-weight: 300;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  opacity: 0;
+}
+.playing .wordmark-rest {
+  animation: fade-in var(--sp-word) ease-out var(--sp-word-delay) forwards;
+}
+
+@keyframes wordmark-settle { to { transform: translateX(0); } }
+@keyframes mark-settle { to { transform: scale(1); } }
 
 /* The dot drops in and settles, the route draws itself over three seconds,
    the far dot lands when it arrives, and only then does the name appear. */
 .route-line {
   stroke: var(--accent);
-  stroke-width: 5;
+  stroke-width: 12;
   stroke-dasharray: var(--route-len, 470);
   stroke-dashoffset: var(--route-len, 470);
 }
@@ -909,8 +948,9 @@ html, body {
 }
 
 .splash-title {
-  font-size: 42px;
-  letter-spacing: -1px;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -0.5px;
   opacity: 0;
 }
 .playing .splash-title { animation: rise var(--sp-words) ease-out var(--sp-title-delay) forwards; }
@@ -1011,6 +1051,10 @@ html, body {
    still arrives in order, it just fades instead of travelling, and the line
    appears whole rather than drawing itself across the screen. */
 @media (prefers-reduced-motion: reduce) {
+  /* The letter is simply where it belongs from the start; nothing slides or zooms. */
+  .wordmark { transform: none; }
+  .splash-route { transform: none; }
+  .playing .wordmark, .playing .splash-route { animation: none; }
   .playing .route-start { animation: fade-in var(--sp-dot) ease-out forwards; }
   .playing .route-end { animation: fade-in var(--sp-end) ease-out var(--sp-end-delay) forwards; }
   .playing .splash-title { animation: fade-in var(--sp-words) ease-out var(--sp-title-delay) forwards; }
