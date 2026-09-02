@@ -876,7 +876,7 @@ html, body {
 
 .splash-route {
   width: 100%;
-  max-width: 300px;
+  max-width: 168px;
   height: auto;
   margin-bottom: 22px;
   overflow: visible;          /* the dots are far larger than the frame on the way in */
@@ -887,8 +887,8 @@ html, body {
 .route-line {
   stroke: var(--accent);
   stroke-width: 5;
-  stroke-dasharray: 320;
-  stroke-dashoffset: 320;
+  stroke-dasharray: var(--route-len, 470);
+  stroke-dashoffset: var(--route-len, 470);
 }
 .playing .route-line {
   animation: draw-route var(--sp-line) cubic-bezier(0.4, 0.03, 0.4, 1) var(--sp-line-delay) forwards;

@@ -45,12 +45,15 @@
   <section id="screen-splash" class="screen">
     <div class="splash-stage" id="splash-stage">
       <div class="splash">
-        <svg class="splash-route" viewBox="0 0 220 120" aria-hidden="true">
+        <!-- One unbroken stroke: up the stem, across the top, round the bowl,
+             back to the stem, then the leg. A dot marks each end of the run. -->
+        <svg class="splash-route" viewBox="0 0 130 156" aria-hidden="true">
           <path class="route-line"
-                d="M14 104 C 44 40, 74 118, 106 62 S 168 16, 206 40"
+                d="M30 142 L30 16 L74 16 C102 16, 112 32, 112 47
+                   C112 64, 98 77, 74 79 L48 79 Q74 108, 102 143"
                 fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-          <circle class="route-start" cx="14" cy="104" r="6"/>
-          <circle class="route-end" cx="206" cy="40" r="7"/>
+          <circle class="route-start" cx="30" cy="142" r="6"/>
+          <circle class="route-end" cx="102" cy="143" r="7"/>
         </svg>
 
         <h1 class="splash-title" id="splash-title">RunPath<span class="dot">.</span></h1>

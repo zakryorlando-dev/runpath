@@ -242,7 +242,7 @@ function afterSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "15:22";           // shown on the splash while this is in doubt
+const BUILD = "15:41";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 450;     // a breath of blank before the sequence starts,
                                  // tripled to see what it does to the phone's reveal
 const INTRO_REPLAY_BLANK_MS = 900;   // a beat of blank before a restart, so a
@@ -325,6 +325,15 @@ function startIntro(stage) {
   else window.addEventListener("load", whenVisible, { once: true });
 }
 
+/* The dash pattern has to be the length of the line it is hiding, and the only
+   thing that knows that is the path itself. */
+function measureRoute() {
+  const path = document.querySelector(".route-line");
+  if (!path || !path.getTotalLength) return;
+  const len = Math.ceil(path.getTotalLength());
+  if (len) path.style.setProperty("--route-len", len);
+}
+
 function runSplash() {
   $("#tabbar").hidden = true;
   $("#start-dock").hidden = true;
@@ -332,6 +341,8 @@ function runSplash() {
   const stamp = $("#build-stamp");
   if (stamp) stamp.textContent = BUILD;
   show("splash");
+
+  measureRoute();
 
   const screen = document.querySelector("#screen-splash");
   const stage = splashStage();
