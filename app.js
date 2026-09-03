@@ -269,7 +269,11 @@ function raiseSplash() {
    a launch screen does not. A long gap between frames is the reveal, and the
    intro starts again from the top when one appears. */
 
-const BUILD = "16:37";           // shown on the splash while this is in doubt
+const AWAY_MS = 2500;   // a tick this late means the page was frozen
+let lastTick = Date.now();
+const signalsSeen = new Set();
+
+const BUILD = "19:18";           // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -391,7 +395,7 @@ function openSplash(mode) {
   $("#start-dock").hidden = true;
   renderSplashGreeting();
   const stamp = $("#build-stamp");
-  if (stamp) stamp.textContent = BUILD;
+  if (stamp) stamp.textContent = stampText();
   show("splash");
 
   measureRoute();
@@ -1174,17 +1178,57 @@ function setWakeNote(text) {
   if (el) el.textContent = text;
 }
 
+/* ---------- leaving and coming back ----------
+
+   A recording showed the app going away and coming back with the Home screen
+   still on it, meaning none of these handlers had run at all: a standalone web
+   app on iOS is not reliably told that it has been backgrounded. So the panel
+   is raised on every signal that might arrive, and, because none of them may,
+   on a heartbeat that notices time it did not live through.
+
+   The letters after the build stamp record which signals this phone actually
+   delivers, so a recording can settle it rather than another guess. */
+
+
+
+function stampText() {
+  return signalsSeen.size ? BUILD + " " + [...signalsSeen].sort().join("") : BUILD;
+}
+
+function noteSignal(letter) {
+  signalsSeen.add(letter);
+  const el = $("#build-stamp");
+  if (el) el.textContent = stampText();
+}
+
+function leftTheApp(letter) {
+  noteSignal(letter);
+  raiseSplash();
+}
+
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && state.tracking) keepAwake();
-  if (document.visibilityState === "hidden") raiseSplash();
-  /* Backgrounding can freeze the page before it repaints, so the panel may not
-     have reached the screen on the way out. Raising it again on the way back in
-     costs nothing when it is already up. */
-  if (document.visibilityState === "visible") raiseSplash();
+  /* Raised on the way out so the app switcher shows the name, and again on the
+     way back in because backgrounding can freeze the page before it repaints.
+     The second call costs nothing when the panel is already up. */
+  leftTheApp(document.visibilityState === "hidden" ? "h" : "v");
 });
-window.addEventListener("pagehide", raiseSplash);
-window.addEventListener("blur", raiseSplash);
-window.addEventListener("focus", () => { if (state.tracking) keepAwake(); });
+window.addEventListener("pagehide", () => leftTheApp("p"));
+window.addEventListener("pageshow", () => leftTheApp("s"));
+window.addEventListener("blur", () => leftTheApp("b"));
+window.addEventListener("focus", () => {
+  if (state.tracking) keepAwake();
+  leftTheApp("f");
+});
+
+/* The backstop: timers do not run while the page is frozen, so a tick that
+   arrives long after it was due is the app returning from somewhere else. */
+setInterval(() => {
+  const now = Date.now();
+  const gap = now - lastTick;
+  lastTick = now;
+  if (gap > AWAY_MS) leftTheApp("t");
+}, 1000);
 
 /* ---------- auto-dim ----------
    Holding the screen on for a whole run costs battery, so black it out after
