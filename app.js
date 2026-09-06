@@ -178,6 +178,14 @@ function renderHistory() {
 const SWIPE_COMMIT = 90;    // px of travel that counts as "yes"
 const SWIPE_FADE = 190;     // px over which the screen fades away entirely
 
+/* How long the "you're back" panel stands before it lets go on its own. Long
+   enough to read as deliberate, short enough that nobody has to do anything -
+   a banking app's own splash flashes and moves on by itself, and this is
+   aimed at matching that rather than the ~5s first-launch sequence, which
+   still waits for a swipe. */
+const RETURN_AUTO_MS = 500;
+let autoReturnTimer = null;
+
 /* Somebody coming back gets their name rather than the sales pitch. The name
    is local so it's ready immediately; being signed in is confirmed a moment
    later, so the line is written again if the splash is still up. */
@@ -213,6 +221,7 @@ function setStageDrag(px) {
 }
 
 function releaseStage(commit) {
+  clearTimeout(autoReturnTimer);   // however this fired, the auto-return is answered
   const stage = splashStage();
   stage.classList.remove("settling", "leaving");
   if (commit) {
@@ -246,11 +255,13 @@ function afterSplash() {
 
 /* Leaving the app puts the name back up behind you, so the app switcher shows
    RunPath rather than whatever you happened to be reading, and so coming back
-   opens on the name instead of a half-remembered screen.
+   opens on the name instead of a half-remembered screen. It lets go of itself
+   a beat later - nobody should have to swipe just to get back into the app
+   they already had open, and a bank's app doesn't ask that either.
 
    A run in progress is the exception, and not a small one: that screen is the
    reason the phone went into a pocket, and it has to be there the moment it
-   comes out - not behind a swipe. */
+   comes out - not behind a swipe, and not behind this panel's own beat. */
 function raiseSplash() {
   if (!state.splashDone) return;        // already up
   if (state.tracking) return;           // never over a run
@@ -260,6 +271,8 @@ function raiseSplash() {
   state.resumeTo = active.id.replace("screen-", "");
   state.splashDone = false;
   openSplash("settled");                // the finished panel, not the sequence again
+  clearTimeout(autoReturnTimer);
+  autoReturnTimer = setTimeout(() => releaseStage(true), RETURN_AUTO_MS);
 }
 
 /* Getting an intro to start when it can actually be seen is harder than it
@@ -277,7 +290,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "12:29";         // shown on the splash while this is in doubt
+const BUILD = "12:41";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught

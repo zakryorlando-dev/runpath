@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"12:29"`) and `CACHE` in `sw.js` (currently `runpath-v34`). Skip the cache bump
+  `"12:41"`) and `CACHE` in `sw.js` (currently `runpath-v35`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -76,9 +76,19 @@ stamp record which signals the phone actually delivered (`h` hidden, `v` visible
 
 The splash is essentially done and Zak likes it: a dot drops in, the logo R draws
 itself centre-screen, shrinks and slides left, "unpath" fades in beside it, then
-the greeting. ~5.1s, skippable with a swipe. Leaving the app raises the finished
-panel; swiping returns you to the screen you were on — except during a run, which
-is deliberately left alone.
+the greeting. ~5.1s, skippable with a swipe. That's the true first-launch
+sequence (`openSplash("intro")`) and it's untouched.
+
+Leaving the app raises the finished panel (`openSplash("settled")`) and now
+**lets go of itself** after `RETURN_AUTO_MS` (500ms) — no swipe required. Zak
+compared it to Citi's own app: a bank's splash flashes and moves on by itself,
+and asking for a manual swipe just to get back into an app you already had
+open read as broken next to that. A swipe/tap/wheel still works as an escape
+hatch (`releaseStage` clears the auto-timer, whichever fires first wins,
+`afterSplash`'s `state.splashDone` guard makes a second firing a no-op) but the
+"swipe up" prompt is hidden in settled mode since there's nothing to ask for.
+Still deliberately skipped during a run — that screen is the reason the phone
+went into a pocket, and it has to be there the instant it comes back out.
 
 ## Sound
 

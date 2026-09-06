@@ -1077,13 +1077,10 @@ html, body {
 .splash-stage.settled .wordmark-rest,
 .splash-stage.settled .splash-title,
 .splash-stage.settled .splash-tagline { opacity: 1; transform: none; }
-.splash-stage.settled .splash-go {
-  opacity: 1;
-  animation: breathe 2800ms ease-in-out infinite;
-}
-.splash-stage.settled .splash-go .chev {
-  animation: chev-drift 2800ms ease-in-out infinite;
-}
+/* This panel lets go of itself - see RETURN_AUTO_MS in app.js - so there is
+   nothing here to prompt a swipe for. A swipe still works underneath, as an
+   escape hatch for anyone who doesn't want to wait the half-second out. */
+.splash-stage.settled .splash-go { opacity: 0; }
 
 
 .burn { font-size: 12px; text-align: center; margin: -8px 0 12px; }
