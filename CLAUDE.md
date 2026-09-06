@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"11:49"`) and `CACHE` in `sw.js` (currently `runpath-v30`). Skip the cache bump
+  `"12:06"`) and `CACHE` in `sw.js` (currently `runpath-v31`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -84,9 +84,19 @@ is deliberately left alone.
 
 The Sound sheet in the start dock sets what a run sounds like: a metronome at
 100-200 bpm in tens, and any number of countdowns, each "N second countdown
-every M minutes". Both are timed off the Web Audio clock, because a click on a
-JS timer drifts inside a minute and iOS throttles timers once it decides
-nothing is happening. Two things there are load-bearing:
+every M minutes" (5-30 seconds, 1-30 minutes). Both are timed off the Web Audio
+clock, because a click on a JS timer drifts inside a minute and iOS throttles
+timers once it decides nothing is happening.
+
+The countdown is the cue Zak acts on without looking at the phone, so it is
+built to be unmistakable next to a metronome clicking three times a second:
+sine against the click's square, low against its high, long against its short.
+Steady 440 while counting, 587-698-831 on the last three seconds, a two-note
+chime on the mark, and the metronome ducked to 0.11 for as long as any of it
+is sounding. Change any one of those and check it still cuts through on the
+road - that is the whole point of the feature.
+
+Two things there are load-bearing:
 
 - **A wheel only commits a value after a finger touches it.** A scroll-snap
   container re-snaps itself when its content changes, and that arrives as a
@@ -97,8 +107,9 @@ nothing is happening. Two things there are load-bearing:
   copies that drift apart.
 
 **Open:**
-- The metronome and the countdowns share one volume and one voice each; if
-  they're hard to tell apart on the road, that's the first thing to change.
+- Every second of a countdown gets a beep, which is why the range stops at 30.
+  If a longer warning is ever wanted, thin the ticks out rather than raising
+  the cap.
 - Confirm the panel now appears on return, and read the build-stamp letters. If
   they show only `t`, iOS sends no exit event and the app-switcher thumbnail
   can't be fixed from inside the page.

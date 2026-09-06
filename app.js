@@ -44,6 +44,7 @@ const state = {
   runSettings: { metronomeOn: false, bpm: 160, countdowns: [] },
   metroMuted: false,   // silenced for this run only, not for the next one
   lastAlertSec: 0,     // the last whole second the countdowns were checked at
+  ducking: false,      // a countdown is sounding: hold the metronome back
   activityType: "run",
   syncing: false,
   plan: null,          // the runner's training plan, if they have one
@@ -276,7 +277,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "11:49";         // shown on the splash while this is in doubt
+const BUILD = "12:06";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -1303,7 +1304,9 @@ document.addEventListener("pointerdown", () => {
 
 const RUNSET_KEY = "runpath.sound";
 const BPM = { min: 100, max: 200, step: 10, fallback: 160 };
-const CD_SEC = { min: 5, max: 60, step: 5, fallback: 30 };
+// a warning, not a countdown to a rocket launch: every one of these seconds
+// gets a beep, so the longest of them is still short enough to want
+const CD_SEC = { min: 5, max: 30, step: 5, fallback: 5 };
 const CD_MIN = { min: 1, max: 30, step: 1, fallback: 5 };
 
 /* A stored number can be off the wheel - either edited by hand or left behind
@@ -1391,9 +1394,12 @@ function startMetronome() {
     if (metronome.at < ctx.currentTime) metronome.at = ctx.currentTime + 0.05;
     const beat = 60 / state.runSettings.bpm;   // read live, so a new tempo lands
     while (metronome.at < ctx.currentTime + METRO_QUEUE_S) {
-      // every fourth click sits higher, so a cadence can be counted in fours
+      // every fourth click sits higher, so a cadence can be counted in fours,
+      // and the whole thing steps back while a countdown is being sounded
       blip(ctx, metronome.at, {
-        freq: metronome.beat % 4 === 0 ? 1650 : 1100, gain: 0.26, ms: 32,
+        freq: metronome.beat % 4 === 0 ? 1650 : 1100,
+        gain: state.ducking ? 0.11 : 0.26,
+        ms: 32,
       });
       metronome.at += beat;
       metronome.beat++;
@@ -1409,22 +1415,45 @@ function stopMetronome() {
 /* Each countdown is "N seconds of warning, every M minutes". The marks follow
    the run's own clock, so time spent paused doesn't move them. Called once a
    second off the stats tick - a beep a fraction late is inaudible as late,
-   and the alternative is a second timer to keep in step with the first. */
+   and the alternative is a second timer to keep in step with the first.
+
+   This is the cue that is acted on, and it has to carry next to a metronome
+   clicking three times a second, so it is a different instrument rather than
+   a different pitch: round sine notes against the click's dry square, low
+   where the click is high, long where the click is short. The last three
+   seconds climb, so how near the mark is can be heard instead of counted, and
+   the mark itself is a two-note chime. While any of it sounds the metronome
+   drops back to under half volume rather than arguing with it. */
+
+const CD_TICK = 440;                 // the steady "still counting" note
+const CD_CLIMB = [587, 698, 831];    // three, two, one
+const CD_MARK = [880, 1320];         // and switch
+
 function runCountdowns(elapsedMs) {
   const secs = Math.floor(elapsedMs / 1000);
   if (secs <= 0 || secs === state.lastAlertSec) return;
   state.lastAlertSec = secs;
+  state.ducking = false;
   if (!state.runSettings.countdowns.length) return;
   const ctx = audio();
   if (!ctx) return;
 
   for (const cd of state.runSettings.countdowns) {
-    const into = secs % (cd.min * 60);
-    if (into === 0) {
-      blip(ctx, ctx.currentTime, { freq: 880, type: "sine", gain: 0.32, ms: 140 });
-      blip(ctx, ctx.currentTime + 0.18, { freq: 1320, type: "sine", gain: 0.32, ms: 220 });
-    } else if (cd.min * 60 - into <= cd.sec) {
-      blip(ctx, ctx.currentTime, { freq: 660, type: "sine", gain: 0.2, ms: 70 });
+    const cycle = cd.min * 60;
+    const left = cycle - (secs % cycle);   // a whole cycle left means we're on the mark
+    if (left === cycle) {
+      blip(ctx, ctx.currentTime, { freq: CD_MARK[0], type: "sine", gain: 0.42, ms: 190 });
+      blip(ctx, ctx.currentTime + 0.2, { freq: CD_MARK[1], type: "sine", gain: 0.42, ms: 320 });
+      state.ducking = true;
+    } else if (left <= cd.sec) {
+      const climb = CD_CLIMB[CD_CLIMB.length - left];   // undefined until the last three
+      blip(ctx, ctx.currentTime, {
+        freq: climb || CD_TICK,
+        type: "sine",
+        gain: climb ? 0.38 : 0.32,
+        ms: climb ? 130 : 100,
+      });
+      state.ducking = true;
     }
   }
 }
@@ -1608,15 +1637,17 @@ function renderCountdowns() {
     words.textContent = text;
     frame.append(band, wheel);
     part.append(frame, words);
-    return { part, wheel };
+    return { part, wheel, words };
   };
+
+  const minuteWord = (v) => (v === 1 ? "minute" : "minutes");
 
   for (const cd of state.runSettings.countdowns) {
     const item = document.createElement("div");
     item.className = "countdown-item";
 
     const sec = phrase("second countdown every");
-    const min = phrase("minutes");
+    const min = phrase(minuteWord(cd.min));
     const del = document.createElement("button");
     del.className = "cd-remove";
     del.type = "button";
@@ -1629,7 +1660,11 @@ function renderCountdowns() {
 
     // in the document first, or there is no scroll position to set
     buildWheel(sec.wheel, CD_SEC, cd.sec, (v) => { cd.sec = v; saveRunSettings(); });
-    buildWheel(min.wheel, CD_MIN, cd.min, (v) => { cd.min = v; saveRunSettings(); });
+    buildWheel(min.wheel, CD_MIN, cd.min, (v) => {
+      cd.min = v;
+      min.words.textContent = minuteWord(v);   // "every 1 minute", not "1 minutes"
+      saveRunSettings();
+    });
   }
 }
 
@@ -1674,6 +1709,7 @@ function startRun(demo) {
   // opening the context here means the first countdown beep isn't swallowed
   state.lastAlertSec = 0;
   state.metroMuted = false;
+  state.ducking = false;
   if (state.runSettings.countdowns.length) audio();
   startMetronome();
   renderMetroButton();
