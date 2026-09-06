@@ -347,7 +347,8 @@ html, body {
 
 /* ---------- hold to finish ----------
    A run shouldn't end on a stray tap, so finishing fills across the button
-   over four seconds and lets go of nothing if you release early. */
+   over two seconds and lets go of nothing if you release early. The length
+   itself is HOLD_MS in app.js, handed here as --hold-ms. */
 
 .btn-hold { position: relative; overflow: hidden; isolation: isolate; }
 .btn-hold::before {
@@ -362,7 +363,7 @@ html, body {
 }
 .btn-hold.holding::before {
   transform: scaleX(1);
-  transition: transform var(--hold-ms, 4000ms) linear;
+  transition: transform var(--hold-ms, 2000ms) linear;
 }
 
 

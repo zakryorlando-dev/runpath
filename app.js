@@ -277,7 +277,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "12:25";         // shown on the splash while this is in doubt
+const BUILD = "12:29";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -1310,7 +1310,6 @@ const BPM = { min: 100, max: 200, step: 10, fallback: 160 };
 // every five seconds up to a minute; past a minute you are counting down more
 // than you are running, and the interval wheel says the same thing anyway
 const CD_SEC = { min: 5, max: 55, step: 5, fallback: 5 };
-const CD_MIN = { min: 1, max: 30, step: 1, fallback: 5 };
 const VOL = { metro: 0.7, cd: 1 };   // defaults, 0 to 1
 
 /* A stored number can be off the wheel - either edited by hand or left behind
@@ -1329,6 +1328,31 @@ function rangeValues(range) {
   return out;
 }
 
+function nearest(values, v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return values[0];
+  return values.reduce((best, val) =>
+    (Math.abs(val - n) < Math.abs(best - n) ? val : best), values[0]);
+}
+
+/* How often a countdown comes round, held in seconds throughout. The wheel
+   runs through the part-minutes first and then whole minutes, and the word
+   beside it follows - so "every 30 seconds" and "every 2 minutes" are the same
+   wheel and the sentence stays a sentence either way. */
+const CD_EVERY = rangeValues({ min: 15, max: 55, step: 5 })
+  .concat(rangeValues({ min: 1, max: 30, step: 1 }).map((m) => m * 60));
+const CD_EVERY_FALLBACK = 300;   // five minutes
+
+const everyLabel = (v) => String(v < 60 ? v : v / 60);
+const everyWord = (v) => (v < 60 ? "seconds" : v === 60 ? "minute" : "minutes");
+
+/* A warning cannot outlast the gap it warns about: a 45-second countdown every
+   30 seconds would never stop counting. These are the lengths that still fit. */
+function warnValues(every) {
+  const fits = rangeValues(CD_SEC).filter((v) => v < every);
+  return fits.length ? fits : [CD_SEC.min];
+}
+
 function loadRunSettings() {
   const fallback = {
     metronomeOn: false, bpm: BPM.fallback,
@@ -1345,11 +1369,17 @@ function loadRunSettings() {
     metroVol: level(saved.metroVol, VOL.metro),
     cdVol: level(saved.cdVol, VOL.cd),
     vibrate: saved.vibrate !== false,
-    countdowns: (Array.isArray(saved.countdowns) ? saved.countdowns : []).map((c, i) => ({
-      id: c.id || Date.now() + i,
-      sec: snapToRange(c.sec, CD_SEC),
-      min: snapToRange(c.min, CD_MIN),
-    })),
+    countdowns: (Array.isArray(saved.countdowns) ? saved.countdowns : []).map((c, i) => {
+      // countdowns saved before the interval could be measured in seconds
+      // carry whole minutes in `min` instead
+      const every = nearest(CD_EVERY,
+        c.every != null ? c.every : c.min != null ? c.min * 60 : CD_EVERY_FALLBACK);
+      return {
+        id: c.id || Date.now() + i,
+        sec: nearest(warnValues(every), snapToRange(c.sec, CD_SEC)),
+        every,
+      };
+    }),
   };
 }
 
@@ -1530,7 +1560,7 @@ function runCountdowns(elapsedMs) {
   let onMark = false;
   let soonest = null;
   for (const cd of state.runSettings.countdowns) {
-    const cycle = cd.min * 60;
+    const cycle = cd.every;
     const left = cycle - (secs % cycle);   // a whole cycle left means we're on the mark
     if (left === cycle) { onMark = true; continue; }
     // the last five one by one, and every fifth second before that
@@ -1571,8 +1601,7 @@ function runCountdowns(elapsedMs) {
 const WHEEL_ROW = parseInt(
   getComputedStyle(document.documentElement).getPropertyValue("--wheel-row"), 10) || 40;
 
-function buildWheel(el, range, value, onChange) {
-  const values = rangeValues(range);
+function buildWheel(el, values, value, onChange, label = String) {
   el.textContent = "";
   el.style.height = `${WHEEL_ROW * 3}px`;
 
@@ -1588,13 +1617,13 @@ function buildWheel(el, range, value, onChange) {
     const d = document.createElement("div");
     d.className = "wheel-opt";
     d.style.height = `${WHEEL_ROW}px`;
-    d.textContent = String(v);
+    d.textContent = label(v);
     el.appendChild(d);
     return d;
   });
   el.appendChild(pad());
 
-  let index = Math.max(0, values.indexOf(snapToRange(value, range)));
+  let index = Math.max(0, values.indexOf(nearest(values, value)));
   const resting = () => index * WHEEL_ROW;
   const paint = (i) => opts.forEach((o, n) => o.classList.toggle("selected", n === i));
   let settle = null;
@@ -1725,7 +1754,7 @@ function renderMetronomeSetting() {
   $("#metro-vol-wrap").hidden = !on;
   if (!on) return;
   // built after unhiding: a wheel with no layout can't be scrolled to a value
-  buildWheel($("#bpm-wheel"), BPM, state.runSettings.bpm, (v) => {
+  buildWheel($("#bpm-wheel"), rangeValues(BPM), state.runSettings.bpm, (v) => {
     state.runSettings.bpm = v;
     saveRunSettings();
     val.textContent = `${v} bpm`;
@@ -1744,7 +1773,7 @@ function toggleMetronome() {
 function addCountdown() {
   primeVoice();   // spend this tap on the permission the first number will need
   state.runSettings.countdowns.push({
-    id: Date.now(), sec: CD_SEC.fallback, min: CD_MIN.fallback,
+    id: Date.now(), sec: CD_SEC.fallback, every: CD_EVERY_FALLBACK,
   });
   saveRunSettings();
   renderCountdowns();
@@ -1784,14 +1813,12 @@ function renderCountdowns() {
     return { part, wheel, words };
   };
 
-  const minuteWord = (v) => (v === 1 ? "minute" : "minutes");
-
   for (const cd of state.runSettings.countdowns) {
     const item = document.createElement("div");
     item.className = "countdown-item";
 
     const sec = phrase("second countdown every");
-    const min = phrase(minuteWord(cd.min));
+    const every = phrase(everyWord(cd.every));
     const del = document.createElement("button");
     del.className = "cd-remove";
     del.type = "button";
@@ -1799,16 +1826,25 @@ function renderCountdowns() {
     del.textContent = "✕";
     del.addEventListener("click", () => removeCountdown(cd.id));
 
-    item.append(sec.part, min.part, del);
+    item.append(sec.part, every.part, del);
     list.appendChild(item);
 
     // in the document first, or there is no scroll position to set
-    buildWheel(sec.wheel, CD_SEC, cd.sec, (v) => { cd.sec = v; saveRunSettings(); });
-    buildWheel(min.wheel, CD_MIN, cd.min, (v) => {
-      cd.min = v;
-      min.words.textContent = minuteWord(v);   // "every 1 minute", not "1 minutes"
+    buildWheel(sec.wheel, warnValues(cd.every), cd.sec, (v) => {
+      cd.sec = v;
       saveRunSettings();
     });
+    buildWheel(every.wheel, CD_EVERY, cd.every, (v) => {
+      const before = warnValues(cd.every).length;
+      cd.every = v;
+      every.words.textContent = everyWord(v);   // "every 1 minute", not "1 minutes"
+      const room = warnValues(v);
+      cd.sec = Math.min(cd.sec, room[room.length - 1]);
+      saveRunSettings();
+      // a shorter gap leaves fewer countdown lengths on offer; rebuild the row
+      // so the seconds wheel is showing what it will actually accept
+      if (room.length !== before) renderCountdowns();
+    }, everyLabel);
   }
 }
 
@@ -2042,12 +2078,12 @@ function stopRun() {
 }
 
 /* ---------- hold to finish ----------
-   Holding for three seconds is the confirmation, so there's no dialog to
+   Holding for two seconds is the confirmation, so there's no dialog to
    dismiss with cold hands. Releasing early cancels; a quick tap says so rather
    than appearing to do nothing. Waking from the dim screen is held too, so a
    jostled phone can't light itself back up. */
 
-const HOLD_MS = 3000;
+const HOLD_MS = 2000;
 
 function holdToFire(btn, onFire) {
   let timer = null, started = 0, hintTimer = null;

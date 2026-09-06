@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"12:25"`) and `CACHE` in `sw.js` (currently `runpath-v33`). Skip the cache bump
+  `"12:29"`) and `CACHE` in `sw.js` (currently `runpath-v34`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -84,9 +84,11 @@ is deliberately left alone.
 
 The Sound sheet in the start dock sets what a run sounds like: a metronome at
 100-200 bpm in tens, and any number of countdowns, each "N second countdown
-every M minutes" (5-55 seconds, 1-30 minutes). Both are timed off the Web Audio
-clock, because a click on a JS timer drifts inside a minute and iOS throttles
-timers once it decides nothing is happening.
+every M". The warning runs 5-55 seconds; the interval is held in seconds
+throughout and its wheel runs 15-55 seconds and then 1-30 minutes, with the
+word beside it following the value. Both are timed off the Web Audio clock,
+because a click on a JS timer drifts inside a minute and iOS throttles timers
+once it decides nothing is happening.
 
 The countdown is the cue Zak acts on without looking at the phone, so it isn't
 a beep at all: the phone speaks the number. "Five, four, three, two, one",
@@ -100,8 +102,13 @@ exist on iOS**, Safari or home-screen app, so on Zak's own phone that row
 reads "Unavailable" and does nothing. It is there for Android testers; don't
 "fix" it by removing the guard.
 
-Three things there are load-bearing:
+Four things there are load-bearing:
 
+- **A warning can't outlast its gap.** "45 second countdown every 30 seconds"
+  would never stop counting, so the seconds wheel only offers lengths shorter
+  than the interval, and shortening the interval clamps the warning and
+  rebuilds the row. Countdowns saved before intervals could be sub-minute
+  carry `min` in whole minutes; `loadRunSettings` converts them.
 - **Speech is verified, not assumed.** A phone whose voices haven't loaded
   takes an utterance and silently drops it, and Chrome can swallow one that
   follows a `cancel()`. `say()` watches for `onstart` and falls back to the
