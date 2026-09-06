@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"12:16"`) and `CACHE` in `sw.js` (currently `runpath-v32`). Skip the cache bump
+  `"12:25"`) and `CACHE` in `sw.js` (currently `runpath-v33`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -84,7 +84,7 @@ is deliberately left alone.
 
 The Sound sheet in the start dock sets what a run sounds like: a metronome at
 100-200 bpm in tens, and any number of countdowns, each "N second countdown
-every M minutes" (5-30 seconds, 1-30 minutes). Both are timed off the Web Audio
+every M minutes" (5-55 seconds, 1-30 minutes). Both are timed off the Web Audio
 clock, because a click on a JS timer drifts inside a minute and iOS throttles
 timers once it decides nothing is happening.
 
@@ -123,8 +123,8 @@ Three things there are load-bearing:
   audio, speech and vibration calls and reading what they were asked to do -
   which says nothing about whether it carries on a street.
 - Vibration is untested end to end: no Android phone has run it.
-- The countdown stops at 30 seconds because the last five are counted one by
-  one. A longer warning means thinning the count further, not raising the cap.
+- The countdown stops at 55 seconds: past a minute the interval wheel says the
+  same thing. A longer warning would mean thinning the count further.
 - Confirm the panel now appears on return, and read the build-stamp letters. If
   they show only `t`, iOS sends no exit event and the app-switcher thumbnail
   can't be fixed from inside the page.

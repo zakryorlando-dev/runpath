@@ -277,7 +277,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "12:16";         // shown on the splash while this is in doubt
+const BUILD = "12:25";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -1307,9 +1307,9 @@ document.addEventListener("pointerdown", () => {
 
 const RUNSET_KEY = "runpath.sound";
 const BPM = { min: 100, max: 200, step: 10, fallback: 160 };
-// a warning, not a countdown to a rocket launch: the last five seconds are
-// counted one by one, so the longest of them is still short enough to want
-const CD_SEC = { min: 5, max: 30, step: 5, fallback: 5 };
+// every five seconds up to a minute; past a minute you are counting down more
+// than you are running, and the interval wheel says the same thing anyway
+const CD_SEC = { min: 5, max: 55, step: 5, fallback: 5 };
 const CD_MIN = { min: 1, max: 30, step: 1, fallback: 5 };
 const VOL = { metro: 0.7, cd: 1 };   // defaults, 0 to 1
 
