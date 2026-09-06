@@ -364,6 +364,7 @@
       </div>
       <div class="run-extra">
         <button id="btn-dim" class="link-btn">Auto-dim: on</button>
+        <button id="btn-metro" class="link-btn" hidden>Metronome: on</button>
         <span id="recording-type" class="recording-type"></span>
         <span id="wake-note" class="wake-note"></span>
       </div>
@@ -636,7 +637,53 @@
       <button class="type-pill" data-type="walk">Walk</button>
       <button class="type-pill" data-type="bike">Bike</button>
     </div>
+    <button id="btn-runset-open" class="runset-row">
+      <span class="setting-name">Sound</span>
+      <span class="runset-summary" id="runset-summary">No metronome</span>
+    </button>
     <button id="btn-start" class="btn-primary">Start Run</button>
+  </div>
+
+  <!-- SOUND — set before a run, heard during it -->
+  <div id="runset-sheet" class="sheet-overlay" hidden>
+    <div class="sheet">
+      <div class="sheet-grab"></div>
+      <div class="sheet-head">
+        <h2>Sound</h2>
+        <button id="btn-runset-done" class="link-btn done">Done</button>
+      </div>
+
+      <div class="sheet-body">
+        <button id="btn-metronome" class="setting-row">
+          <span class="setting-name">Metronome</span>
+          <span class="setting-val off" id="metronome-val">Off</span>
+        </button>
+        <p class="setting-hint">
+          A steady click to run to &mdash; the beat you meant to hold, not a
+          coach. It plays while you pick one. An iPhone's silent switch mutes
+          it, so headphones are the safe bet.
+        </p>
+        <div id="bpm-wrap" class="wheel-line" hidden>
+          <div class="wheel-frame">
+            <div class="wheel-band"></div>
+            <div class="wheel" id="bpm-wheel"></div>
+          </div>
+          <span class="wheel-word">beats per minute</span>
+        </div>
+
+        <div class="sheet-sub">
+          <h2 class="settings-sub">Countdowns</h2>
+          <button id="btn-add-countdown" class="link-btn add">+ Add countdown</button>
+        </div>
+        <p class="setting-hint">
+          Ticks down the last seconds before each mark and sounds twice when
+          you reach it, so a switch between cycles never arrives unannounced.
+          Time spent paused doesn't count.
+        </p>
+        <div id="countdown-list" class="countdown-list"></div>
+        <p id="countdown-empty" class="setting-hint">None yet.</p>
+      </div>
+    </div>
   </div>
 
   <!-- TAB BAR -->

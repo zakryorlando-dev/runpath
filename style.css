@@ -25,6 +25,11 @@ button { touch-action: manipulation; }   /* no double-tap zoom on the controls *
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --tabbar-h: 58px;
   --tabbar-space: calc(var(--safe-bottom) + var(--tabbar-h) + 16px);
+  /* One row of a number wheel. The band that marks the chosen value, the
+     padding above and below the values, and the arithmetic in app.js that
+     turns a scroll position into a number all read this - so it lives here
+     once rather than in three places that can drift apart. */
+  --wheel-row: 40px;
 }
 
 html, body {
@@ -46,7 +51,7 @@ html, body {
   overflow-y: auto;
 }
 /* Home scrolls under the docked button, so it needs room for it */
-#screen-home { padding-bottom: calc(var(--tabbar-space) + 84px); }
+#screen-home { padding-bottom: calc(var(--tabbar-space) + 130px); }
 
 .home-header h1 { font-size: 34px; letter-spacing: -0.5px; }
 .home-header h1::after { content: "."; color: var(--accent); }
@@ -162,6 +167,8 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 12px;
   min-height: 18px;
 }
@@ -1080,6 +1087,141 @@ html, body {
 
 .burn { font-size: 12px; text-align: center; margin: -8px 0 12px; }
 .burn[hidden] { display: none; }
+
+
+/* ---------- sound: the sheet, and the number wheels in it ---------- */
+
+/* sits in the dock with the type picker, showing what a run will sound like */
+.runset-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.runset-row .setting-name { font-size: 13px; }
+.runset-summary { color: var(--muted); }
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;                  /* over the tab bar and the docked start */
+  display: flex;
+  align-items: flex-end;
+  background: rgba(1, 4, 9, 0.6);
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+.sheet-overlay[hidden] { display: none; }
+.sheet-overlay.open { opacity: 1; }
+
+.sheet {
+  width: 100%;
+  max-height: 86dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  padding: 8px 20px calc(var(--safe-bottom) + 18px);
+  transform: translateY(100%);
+  transition: transform 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sheet-overlay.open .sheet { transform: translateY(0); }
+
+.sheet-grab { width: 38px; height: 4px; border-radius: 2px; background: var(--border); margin: 6px auto 12px; }
+.sheet-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+.sheet-head h2 { font-size: 20px; letter-spacing: -0.3px; }
+.sheet-body { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.sheet-sub { display: flex; justify-content: space-between; align-items: center; }
+.sheet-sub .settings-sub { margin: 6px 0; }
+.link-btn.done { color: var(--accent); font-size: 15px; font-weight: 700; }
+.link-btn.add { color: var(--accent); font-weight: 600; }
+
+/* A picker column: three rows tall, the middle one banded. The values scroll
+   and the browser snaps them, so the number under the band is the answer -
+   app.js only has to read where the scroll came to rest. */
+.wheel-line { display: flex; align-items: center; gap: 12px; margin: 2px 0 18px; }
+.wheel-line[hidden] { display: none; }
+.wheel-word, .cd-word { color: var(--muted); font-size: 13px; }
+
+.wheel-frame { position: relative; flex-shrink: 0; }
+.wheel-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--wheel-row);
+  height: var(--wheel-row);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(46, 229, 157, 0.06);
+  pointer-events: none;
+}
+.wheel {
+  width: 78px;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;   /* spinning a wheel doesn't drag the sheet */
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  touch-action: pan-y;
+}
+.wheel::-webkit-scrollbar { display: none; }
+.wheel-opt {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  color: var(--muted);
+  font-size: 19px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: color 120ms ease;
+}
+.wheel-opt.selected { color: var(--accent); }
+
+/* Reads as a sentence: [30] second countdown every [5] minutes. It has to hold
+   that line on a phone, so the wheels here are narrower than the cadence one,
+   the words a size down, and the remove button is lifted out of the flow into
+   the corner - on a narrow screen the sentence then wraps at "minutes" rather
+   than stranding the button on a line of its own. */
+.countdown-list { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.countdown-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #12171f;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 8px 34px 8px 12px;
+}
+.cd-part { display: flex; align-items: center; gap: 6px; }
+.countdown-item .wheel { width: 48px; }
+.countdown-item .wheel-opt { font-size: 18px; }
+.countdown-item .cd-word { font-size: clamp(10px, 3.1vw, 12px); }
+.cd-remove {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 14px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+#countdown-empty[hidden] { display: none; }
 
 
 /* temporary: tells a screen recording which build it is looking at */

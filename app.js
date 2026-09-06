@@ -41,6 +41,9 @@ const state = {
   dimmed: false,
   dimEnabled: true,
   prefs: { autoSnap: true, privacyM: 200 },
+  runSettings: { metronomeOn: false, bpm: 160, countdowns: [] },
+  metroMuted: false,   // silenced for this run only, not for the next one
+  lastAlertSec: 0,     // the last whole second the countdowns were checked at
   activityType: "run",
   syncing: false,
   plan: null,          // the runner's training plan, if they have one
@@ -273,7 +276,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "19:18";           // shown on the splash while this is in doubt
+const BUILD = "11:49";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -1203,6 +1206,9 @@ function noteSignal(letter) {
 
 function leftTheApp(letter) {
   noteSignal(letter);
+  // a sheet left open would sit over the panel, and the metronome it is
+  // previewing would go on clicking into a pocket
+  if (!$("#runset-sheet").hidden) closeRunSettings();
   raiseSplash();
 }
 
@@ -1283,6 +1289,350 @@ document.addEventListener("pointerdown", () => {
   armDim();
 }, true);
 
+/* ---------- sound ----------
+   Two things to listen to on a run, both set before it starts. The metronome
+   is a steady click at a chosen cadence - a placeholder for the rhythm you
+   meant to hold, not a coach. A countdown ticks the last seconds away before
+   a mark and sounds twice on it, so switching cycles doesn't need watching
+   the screen.
+
+   Both are timed by the audio clock, not by setInterval. A click fired from a
+   JS timer drifts audibly inside a minute, and iOS throttles timers hard once
+   the phone thinks nothing is happening. The timer here only decides when to
+   queue the next few clicks; the audio hardware decides when they sound. */
+
+const RUNSET_KEY = "runpath.sound";
+const BPM = { min: 100, max: 200, step: 10, fallback: 160 };
+const CD_SEC = { min: 5, max: 60, step: 5, fallback: 30 };
+const CD_MIN = { min: 1, max: 30, step: 1, fallback: 5 };
+
+/* A stored number can be off the wheel - either edited by hand or left behind
+   by a range that has since changed - and a wheel pointing between two values
+   has nothing to show. Pull it back onto the nearest step. */
+function snapToRange(v, range) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return range.fallback;
+  const stepped = range.min + Math.round((n - range.min) / range.step) * range.step;
+  return Math.min(range.max, Math.max(range.min, stepped));
+}
+
+function rangeValues(range) {
+  const out = [];
+  for (let v = range.min; v <= range.max; v += range.step) out.push(v);
+  return out;
+}
+
+function loadRunSettings() {
+  const fallback = { metronomeOn: false, bpm: BPM.fallback, countdowns: [] };
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(RUNSET_KEY)); } catch {}
+  if (!saved) return fallback;
+  return {
+    metronomeOn: !!saved.metronomeOn,
+    bpm: snapToRange(saved.bpm, BPM),
+    countdowns: (Array.isArray(saved.countdowns) ? saved.countdowns : []).map((c, i) => ({
+      id: c.id || Date.now() + i,
+      sec: snapToRange(c.sec, CD_SEC),
+      min: snapToRange(c.min, CD_MIN),
+    })),
+  };
+}
+
+function saveRunSettings() {
+  try { localStorage.setItem(RUNSET_KEY, JSON.stringify(state.runSettings)); } catch {}
+  renderRunsetSummary();
+}
+
+/* iOS only lets an audio context start inside a tap, and suspends it again
+   whenever the app loses audio focus, so this is called from the taps that
+   mean sound is wanted and resumes on every use. */
+let audioCtx = null;
+
+function audio() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+/* A short shaped note. Square for the metronome so it carries over traffic
+   and footfall, sine for the countdowns so the two never sound alike. The
+   ramps matter: a gain switched on hard clicks and hurts on headphones. */
+function blip(ctx, at, { freq, type = "square", gain = 0.28, ms = 40 }) {
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, at);
+  amp.gain.setValueAtTime(0.0001, at);
+  amp.gain.exponentialRampToValueAtTime(gain, at + 0.006);
+  amp.gain.exponentialRampToValueAtTime(0.0001, at + ms / 1000);
+  osc.connect(amp).connect(ctx.destination);
+  osc.start(at);
+  osc.stop(at + ms / 1000 + 0.02);
+}
+
+const metronome = { at: 0, beat: 0, timer: null };
+const METRO_TICK_MS = 25;     // how often the queue is topped up
+const METRO_QUEUE_S = 0.15;   // how far ahead of the sound the queue runs
+
+function startMetronome() {
+  stopMetronome();
+  if (!state.runSettings.metronomeOn) return;
+  const ctx = audio();
+  if (!ctx) return;
+  metronome.beat = 0;
+  metronome.at = ctx.currentTime + 0.2;
+  metronome.timer = setInterval(() => {
+    // back from a suspend the audio clock has run on without us; start again
+    // from now rather than firing every click the gap owes
+    if (metronome.at < ctx.currentTime) metronome.at = ctx.currentTime + 0.05;
+    const beat = 60 / state.runSettings.bpm;   // read live, so a new tempo lands
+    while (metronome.at < ctx.currentTime + METRO_QUEUE_S) {
+      // every fourth click sits higher, so a cadence can be counted in fours
+      blip(ctx, metronome.at, {
+        freq: metronome.beat % 4 === 0 ? 1650 : 1100, gain: 0.26, ms: 32,
+      });
+      metronome.at += beat;
+      metronome.beat++;
+    }
+  }, METRO_TICK_MS);
+}
+
+function stopMetronome() {
+  clearInterval(metronome.timer);
+  metronome.timer = null;
+}
+
+/* Each countdown is "N seconds of warning, every M minutes". The marks follow
+   the run's own clock, so time spent paused doesn't move them. Called once a
+   second off the stats tick - a beep a fraction late is inaudible as late,
+   and the alternative is a second timer to keep in step with the first. */
+function runCountdowns(elapsedMs) {
+  const secs = Math.floor(elapsedMs / 1000);
+  if (secs <= 0 || secs === state.lastAlertSec) return;
+  state.lastAlertSec = secs;
+  if (!state.runSettings.countdowns.length) return;
+  const ctx = audio();
+  if (!ctx) return;
+
+  for (const cd of state.runSettings.countdowns) {
+    const into = secs % (cd.min * 60);
+    if (into === 0) {
+      blip(ctx, ctx.currentTime, { freq: 880, type: "sine", gain: 0.32, ms: 140 });
+      blip(ctx, ctx.currentTime + 0.18, { freq: 1320, type: "sine", gain: 0.32, ms: 220 });
+    } else if (cd.min * 60 - into <= cd.sec) {
+      blip(ctx, ctx.currentTime, { freq: 660, type: "sine", gain: 0.2, ms: 70 });
+    }
+  }
+}
+
+/* ---------- number wheel ----------
+   The scrolling is the browser's: mandatory snap points on rows of one fixed
+   height, padded top and bottom so the first and last value can still reach
+   the middle. That makes the chosen value nothing more than the scroll offset
+   divided by the row height. Reading it waits until the scrolling stops - iOS
+   fires scroll events all through the momentum, and scrollend is too new to
+   count on for the phone this runs on. */
+
+const WHEEL_ROW = parseInt(
+  getComputedStyle(document.documentElement).getPropertyValue("--wheel-row"), 10) || 40;
+
+function buildWheel(el, range, value, onChange) {
+  const values = rangeValues(range);
+  el.textContent = "";
+  el.style.height = `${WHEEL_ROW * 3}px`;
+
+  const pad = () => {
+    const d = document.createElement("div");
+    d.style.height = `${WHEEL_ROW}px`;
+    d.style.flexShrink = "0";
+    return d;
+  };
+
+  el.appendChild(pad());
+  const opts = values.map((v) => {
+    const d = document.createElement("div");
+    d.className = "wheel-opt";
+    d.style.height = `${WHEEL_ROW}px`;
+    d.textContent = String(v);
+    el.appendChild(d);
+    return d;
+  });
+  el.appendChild(pad());
+
+  let index = Math.max(0, values.indexOf(snapToRange(value, range)));
+  const resting = () => index * WHEEL_ROW;
+  const paint = (i) => opts.forEach((o, n) => o.classList.toggle("selected", n === i));
+  let settle = null;
+  let touched = false;
+
+  /* Only a finger changes the value. A snap container re-snaps itself when its
+     content changes, which lands as a scroll event the page never asked for -
+     and before this guard existed, simply opening the sheet wrote every wheel
+     back to its lowest value. */
+  for (const ev of ["pointerdown", "wheel", "keydown"]) {
+    el.addEventListener(ev, () => { touched = true; }, { passive: true });
+  }
+
+  el.addEventListener("scroll", () => {
+    const i = Math.min(values.length - 1,
+      Math.max(0, Math.round(el.scrollTop / WHEEL_ROW)));
+    paint(i);                                  // the highlight tracks the finger
+    if (!touched) return;
+    clearTimeout(settle);
+    settle = setTimeout(() => {                // the value waits for it to stop
+      if (i === index) return;
+      index = i;
+      onChange(values[i]);
+    }, 120);
+  }, { passive: true });
+
+  // and the wheel is put back where it belongs until someone touches it
+  el.scrollTop = resting();
+  for (const delay of [0, 60, 250]) {
+    setTimeout(() => {
+      if (!touched && Math.abs(el.scrollTop - resting()) > 1) el.scrollTop = resting();
+    }, delay);
+  }
+  paint(index);
+}
+
+/* ---------- the sound sheet ---------- */
+
+function renderRunsetSummary() {
+  const rs = state.runSettings;
+  const beat = rs.metronomeOn ? `${rs.bpm} bpm` : "No metronome";
+  const n = rs.countdowns.length;
+  const el = $("#runset-summary");
+  if (el) el.textContent = n ? `${beat} · ${n} countdown${n > 1 ? "s" : ""}` : beat;
+}
+
+function renderMetroButton() {
+  const btn = $("#btn-metro");
+  btn.hidden = !state.tracking || !state.runSettings.metronomeOn;
+  btn.textContent = `Metronome: ${state.metroMuted ? "off" : "on"}`;
+}
+
+/* Outside a run the metronome plays while the sheet is open, so the wheel can
+   be heard rather than guessed at. */
+function previewMetronome() {
+  if (state.tracking) return;
+  if (state.runSettings.metronomeOn) startMetronome();
+  else stopMetronome();
+}
+
+function openRunSettings() {
+  const sheet = $("#runset-sheet");
+  sheet.hidden = false;
+  renderMetronomeSetting();
+  renderCountdowns();
+  // a frame's grace so the slide-up has a starting position to animate from.
+  // A timer, not requestAnimationFrame: a page that isn't painting never gets
+  // the frame, and the sheet would sit there invisible and swallowing taps
+  setTimeout(() => { if (!sheet.hidden) sheet.classList.add("open"); }, 20);
+  previewMetronome();
+}
+
+function closeRunSettings() {
+  const sheet = $("#runset-sheet");
+  sheet.classList.remove("open");
+  if (!state.tracking) stopMetronome();
+  setTimeout(() => { if (!sheet.classList.contains("open")) sheet.hidden = true; }, 300);
+}
+
+function renderMetronomeSetting() {
+  const on = state.runSettings.metronomeOn;
+  const val = $("#metronome-val");
+  val.textContent = on ? `${state.runSettings.bpm} bpm` : "Off";
+  val.classList.toggle("off", !on);
+
+  const wrap = $("#bpm-wrap");
+  wrap.hidden = !on;
+  if (!on) return;
+  // built after unhiding: a wheel with no layout can't be scrolled to a value
+  buildWheel($("#bpm-wheel"), BPM, state.runSettings.bpm, (v) => {
+    state.runSettings.bpm = v;
+    saveRunSettings();
+    val.textContent = `${v} bpm`;
+    if (metronome.timer) startMetronome();     // pick the new tempo up now
+  });
+}
+
+function toggleMetronome() {
+  state.runSettings.metronomeOn = !state.runSettings.metronomeOn;
+  saveRunSettings();
+  renderMetronomeSetting();
+  previewMetronome();
+  renderMetroButton();
+}
+
+function addCountdown() {
+  state.runSettings.countdowns.push({
+    id: Date.now(), sec: CD_SEC.fallback, min: CD_MIN.fallback,
+  });
+  saveRunSettings();
+  renderCountdowns();
+}
+
+function removeCountdown(id) {
+  state.runSettings.countdowns = state.runSettings.countdowns.filter((c) => c.id !== id);
+  saveRunSettings();
+  renderCountdowns();
+}
+
+/* Each row reads as a sentence with two wheels in it:
+   [30] second countdown every [5] minutes */
+function renderCountdowns() {
+  const list = $("#countdown-list");
+  list.textContent = "";
+  $("#countdown-empty").hidden = state.runSettings.countdowns.length > 0;
+
+  /* A wheel and the words that belong to it, kept together: when the sentence
+     is too wide for the phone it breaks between the two halves, which still
+     reads as a sentence, rather than dropping "minutes" onto a line of its
+     own away from the number it counts. */
+  const phrase = (text) => {
+    const part = document.createElement("div");
+    part.className = "cd-part";
+    const frame = document.createElement("div");
+    frame.className = "wheel-frame";
+    const band = document.createElement("div");
+    band.className = "wheel-band";
+    const wheel = document.createElement("div");
+    wheel.className = "wheel";
+    const words = document.createElement("span");
+    words.className = "cd-word";
+    words.textContent = text;
+    frame.append(band, wheel);
+    part.append(frame, words);
+    return { part, wheel };
+  };
+
+  for (const cd of state.runSettings.countdowns) {
+    const item = document.createElement("div");
+    item.className = "countdown-item";
+
+    const sec = phrase("second countdown every");
+    const min = phrase("minutes");
+    const del = document.createElement("button");
+    del.className = "cd-remove";
+    del.type = "button";
+    del.setAttribute("aria-label", "Remove this countdown");
+    del.textContent = "✕";
+    del.addEventListener("click", () => removeCountdown(cd.id));
+
+    item.append(sec.part, min.part, del);
+    list.appendChild(item);
+
+    // in the document first, or there is no scroll position to set
+    buildWheel(sec.wheel, CD_SEC, cd.sec, (v) => { cd.sec = v; saveRunSettings(); });
+    buildWheel(min.wheel, CD_MIN, cd.min, (v) => { cd.min = v; saveRunSettings(); });
+  }
+}
+
 /* ---------- active run ---------- */
 
 function ensureRunMap() {
@@ -1319,6 +1669,14 @@ function startRun(demo) {
   state.wakeTimer = setInterval(() => { if (state.tracking) keepAwake(); }, 15000);
   armDim();
   state.timerId = setInterval(updateStats, 250);
+
+  // the tap that started the run is the gesture iOS wants before any sound;
+  // opening the context here means the first countdown beep isn't swallowed
+  state.lastAlertSec = 0;
+  state.metroMuted = false;
+  if (state.runSettings.countdowns.length) audio();
+  startMetronome();
+  renderMetroButton();
 
   if (demo) startDemoPlayback();
   else startWatching();
@@ -1417,10 +1775,12 @@ function elapsedMs() {
 }
 
 function updateStats() {
-  const t = fmtTime(elapsedMs()), d = (state.distance / MI).toFixed(2);
+  const ms = elapsedMs();
+  const t = fmtTime(ms), d = (state.distance / MI).toFixed(2);
   $("#stat-time").textContent = t;
   $("#stat-dist").textContent = d;
-  $("#stat-pace").textContent = fmtPace(elapsedMs(), state.distance);
+  $("#stat-pace").textContent = fmtPace(ms, state.distance);
+  if (state.tracking && !state.paused) runCountdowns(ms);
   if (state.dimmed) {
     const clock = $("#dim-time");
     clock.textContent = t;
@@ -1434,6 +1794,7 @@ function togglePause() {
     state.paused = true;
     state.pausedAt = now();
     if (state.watchId != null) { navigator.geolocation.clearWatch(state.watchId); state.watchId = null; }
+    stopMetronome();
     $("#btn-pause").textContent = "Resume";
     $("#btn-pause").classList.add("resuming");
   } else {
@@ -1442,6 +1803,7 @@ function togglePause() {
     state.paused = false;
     state.segments.push([]);   // new segment: no line across the gap
     if (!state.demo) startWatching();
+    if (!state.metroMuted) startMetronome();
     $("#btn-pause").textContent = "Pause";
     $("#btn-pause").classList.remove("resuming");
   }
@@ -1458,6 +1820,8 @@ function stopRun() {
   clearTimeout(state.dimTimer);
   hideDim();
   releaseAwake();
+  stopMetronome();
+  renderMetroButton();
 
   const run = {
     id: Date.now(),
@@ -3200,6 +3564,20 @@ document.querySelectorAll("#type-picker .type-pill").forEach((b) =>
 document.querySelectorAll("#detail-type .type-pill").forEach((b) =>
   b.addEventListener("click", () => changeRunType(b.dataset.type)));
 $("#btn-dim").addEventListener("click", () => setDimPref(!state.dimEnabled));
+$("#btn-runset-open").addEventListener("click", openRunSettings);
+$("#btn-runset-done").addEventListener("click", closeRunSettings);
+// tapping the dimmed backdrop is the other way out of a sheet
+$("#runset-sheet").addEventListener("click", (e) => {
+  if (e.target === $("#runset-sheet")) closeRunSettings();
+});
+$("#btn-metronome").addEventListener("click", toggleMetronome);
+$("#btn-add-countdown").addEventListener("click", addCountdown);
+$("#btn-metro").addEventListener("click", () => {
+  state.metroMuted = !state.metroMuted;
+  if (state.metroMuted) stopMetronome();
+  else startMetronome();
+  renderMetroButton();
+});
 holdToFire($("#btn-wake"), () => { hideDim(); armDim(); });
 holdToFire($("#btn-stop"), stopRun);
 $("#btn-back").addEventListener("click", () => showTab(state.tab || "home"));
@@ -3232,6 +3610,8 @@ for (const group of ["ob-sex", "ob-goal", "ob-level", "ob-days"]) {
 }
 
 state.prefs = loadPrefs();
+state.runSettings = loadRunSettings();
+renderRunsetSummary();
 setActivityType("run");
 renderPrefs();
 document.querySelectorAll(".tab").forEach((t) =>

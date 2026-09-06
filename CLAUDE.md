@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"19:18"`) and `CACHE` in `sw.js` (currently `runpath-v29`). Skip the cache bump
+  `"11:49"`) and `CACHE` in `sw.js` (currently `runpath-v30`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -80,7 +80,25 @@ the greeting. ~5.1s, skippable with a swipe. Leaving the app raises the finished
 panel; swiping returns you to the screen you were on — except during a run, which
 is deliberately left alone.
 
+## Sound
+
+The Sound sheet in the start dock sets what a run sounds like: a metronome at
+100-200 bpm in tens, and any number of countdowns, each "N second countdown
+every M minutes". Both are timed off the Web Audio clock, because a click on a
+JS timer drifts inside a minute and iOS throttles timers once it decides
+nothing is happening. Two things there are load-bearing:
+
+- **A wheel only commits a value after a finger touches it.** A scroll-snap
+  container re-snaps itself when its content changes, and that arrives as a
+  scroll event nobody asked for - before the `touched` guard in `buildWheel`,
+  opening the sheet reset every countdown to its lowest value.
+- **The row height lives in `--wheel-row` alone.** The band, the padding and
+  the scroll arithmetic in `app.js` all read it, so it can't be split into
+  copies that drift apart.
+
 **Open:**
+- The metronome and the countdowns share one volume and one voice each; if
+  they're hard to tell apart on the road, that's the first thing to change.
 - Confirm the panel now appears on return, and read the build-stamp letters. If
   they show only `t`, iOS sends no exit event and the app-switcher thumbnail
   can't be fixed from inside the page.
