@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"12:41"`) and `CACHE` in `sw.js` (currently `runpath-v35`). Skip the cache bump
+  `"13:04"`) and `CACHE` in `sw.js` (currently `runpath-v36`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -79,14 +79,31 @@ itself centre-screen, shrinks and slides left, "unpath" fades in beside it, then
 the greeting. ~5.1s, skippable with a swipe. That's the true first-launch
 sequence (`openSplash("intro")`) and it's untouched.
 
-Leaving the app raises the finished panel (`openSplash("settled")`) and now
-**lets go of itself** after `RETURN_AUTO_MS` (500ms) — no swipe required. Zak
-compared it to Citi's own app: a bank's splash flashes and moves on by itself,
-and asking for a manual swipe just to get back into an app you already had
-open read as broken next to that. A swipe/tap/wheel still works as an escape
-hatch (`releaseStage` clears the auto-timer, whichever fires first wins,
-`afterSplash`'s `state.splashDone` guard makes a second firing a no-op) but the
-"swipe up" prompt is hidden in settled mode since there's nothing to ask for.
+Leaving the app raises the finished panel (`openSplash("settled")`), and it is
+now a different, smaller thing than the first-launch screen it used to share
+CSS with. Compared against two of Zak's own recordings of the Citi app:
+
+- **It lets go of itself** after `RETURN_AUTO_MS` (500ms) — no swipe required.
+  A swipe/tap/wheel still works as an escape hatch (`releaseStage` clears the
+  auto-timer; whichever fires first wins via `afterSplash`'s `state.splashDone`
+  guard), and the "swipe up" prompt is hidden since there's nothing to ask for.
+- **It shows only the R**, not the full "Runpath. / Welcome back!" lockup -
+  `wordmark-rest`, `.splash-title` and `.splash-tagline` are `display:none` in
+  `.splash-stage.settled`, the same way Citi's own app-switcher card shows its
+  icon rather than the account screen sitting behind it. `display:none` matters
+  over `opacity:0` here: an invisible "unpath" still pushes the R off-centre in
+  the flex row if it's merely hidden rather than taken out of layout.
+
+Both are scoped to `.splash-stage.settled` alone. The true first-launch
+sequence (`openSplash("intro")`) is untouched - full wordmark, greeting,
+tagline, swipe prompt, same ~5.1s build Zak already likes.
+
+One honest limit: none of this can promise what the OS captures for the live
+app-switcher thumbnail *during* the swipe-up gesture itself. That capture
+happens at the compositor level, before any JS visibilitychange/blur handler
+gets to run - a website has no equivalent to a native app's
+`applicationDidEnterBackground`. What's guaranteed is what's on screen by the
+time JS does react, which is what the panel above controls.
 Still deliberately skipped during a run — that screen is the reason the phone
 went into a pocket, and it has to be there the instant it comes back out.
 

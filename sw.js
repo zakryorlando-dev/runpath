@@ -1,4 +1,4 @@
-const CACHE = "runpath-v35";
+const CACHE = "runpath-v36";
 const CORE = [
   "./",
   "./index.html",

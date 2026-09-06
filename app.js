@@ -290,7 +290,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "12:41";         // shown on the splash while this is in doubt
+const BUILD = "13:04";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught

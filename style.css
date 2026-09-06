@@ -1067,16 +1067,20 @@ html, body {
   .splash-stage.settling, .splash-stage.leaving { transition-duration: 200ms; }
 }
 
-/* The finished panel, with nothing running. This is what stands in when you
-   leave the app: the same screen the intro ends on, arrived at directly. */
+/* What stands in when you leave the app: just the mark, the way a banking
+   app's own app-switcher card shows its icon rather than the account screen
+   sitting behind it - not the full "Runpath. / Welcome back!" lockup the
+   first-launch intro ends on. wordmark-rest is display:none rather than
+   opacity:0: it has to leave the flex row's layout, or the invisible word
+   still pushes the R off-centre where "unpath" would have sat next to it. */
 .splash-stage.settled .route-line { stroke-dashoffset: 0; }
 .splash-stage.settled .route-start,
 .splash-stage.settled .route-end { opacity: 1; transform: scale(1); filter: none; }
-.splash-stage.settled .wordmark { transform: translateX(0); }
+.splash-stage.settled .wordmark { transform: translateX(0); margin-bottom: 0; }
 .splash-stage.settled .splash-route { transform: scale(1); }
 .splash-stage.settled .wordmark-rest,
 .splash-stage.settled .splash-title,
-.splash-stage.settled .splash-tagline { opacity: 1; transform: none; }
+.splash-stage.settled .splash-tagline { display: none; }
 /* This panel lets go of itself - see RETURN_AUTO_MS in app.js - so there is
    nothing here to prompt a swipe for. A swipe still works underneath, as an
    escape hatch for anyone who doesn't want to wait the half-second out. */
