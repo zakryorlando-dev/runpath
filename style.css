@@ -1189,6 +1189,52 @@ html, body {
 }
 .wheel-opt.selected { color: var(--accent); }
 
+/* A slider for each of the two, because "loud enough over traffic" is not a
+   number anyone can pick in advance. touch-action keeps a drag along the
+   slider from scrolling the sheet out from under the thumb. */
+.vol-line { display: flex; align-items: center; gap: 12px; margin: 2px 0 18px; }
+.vol-line[hidden] { display: none; }
+.vol-label { color: var(--muted); font-size: 13px; }
+.vol-val {
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  width: 42px;
+  text-align: right;
+}
+.vol {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 26px;
+  background: none;
+  touch-action: none;
+}
+.vol::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+}
+.vol::-moz-range-track { height: 4px; border-radius: 2px; background: var(--border); }
+.vol::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  margin-top: -9px;            /* centred on a 4px track */
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.vol::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.setting-row:disabled { opacity: 0.75; cursor: default; }
+
 /* Reads as a sentence: [30] second countdown every [5] minutes. It has to hold
    that line on a phone, so the wheels here are narrower than the cadence one,
    the words a size down, and the remove button is lifted out of the flow into

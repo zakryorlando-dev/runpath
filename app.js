@@ -277,7 +277,7 @@ const AWAY_MS = 2500;   // a tick this late means the page was frozen
 let lastTick = Date.now();
 const signalsSeen = new Set();
 
-const BUILD = "12:06";         // shown on the splash while this is in doubt
+const BUILD = "12:16";         // shown on the splash while this is in doubt
 const INTRO_SETTLE_MS = 1400;    // Blank held before the sequence starts. iOS keeps
                                  // its launch screen up for about 1.2s while the page
                                  // is already animating behind it; a recording caught
@@ -1293,21 +1293,25 @@ document.addEventListener("pointerdown", () => {
 /* ---------- sound ----------
    Two things to listen to on a run, both set before it starts. The metronome
    is a steady click at a chosen cadence - a placeholder for the rhythm you
-   meant to hold, not a coach. A countdown ticks the last seconds away before
-   a mark and sounds twice on it, so switching cycles doesn't need watching
+   meant to hold, not a coach. A countdown speaks the last seconds away before
+   a mark and says "switch" on it, so changing cycles doesn't need watching
    the screen.
 
-   Both are timed by the audio clock, not by setInterval. A click fired from a
-   JS timer drifts audibly inside a minute, and iOS throttles timers hard once
-   the phone thinks nothing is happening. The timer here only decides when to
-   queue the next few clicks; the audio hardware decides when they sound. */
+   The clicks are timed by the audio clock, not by setInterval. A click fired
+   from a JS timer drifts audibly inside a minute, and iOS throttles timers
+   hard once the phone thinks nothing is happening. The timer here only
+   decides when to queue the next few clicks; the audio hardware decides when
+   they sound. The spoken numbers go through the phone's own voice, which is
+   queued rather than scheduled - close enough for a number, and it costs
+   nothing to ship. */
 
 const RUNSET_KEY = "runpath.sound";
 const BPM = { min: 100, max: 200, step: 10, fallback: 160 };
-// a warning, not a countdown to a rocket launch: every one of these seconds
-// gets a beep, so the longest of them is still short enough to want
+// a warning, not a countdown to a rocket launch: the last five seconds are
+// counted one by one, so the longest of them is still short enough to want
 const CD_SEC = { min: 5, max: 30, step: 5, fallback: 5 };
 const CD_MIN = { min: 1, max: 30, step: 1, fallback: 5 };
+const VOL = { metro: 0.7, cd: 1 };   // defaults, 0 to 1
 
 /* A stored number can be off the wheel - either edited by hand or left behind
    by a range that has since changed - and a wheel pointing between two values
@@ -1326,13 +1330,21 @@ function rangeValues(range) {
 }
 
 function loadRunSettings() {
-  const fallback = { metronomeOn: false, bpm: BPM.fallback, countdowns: [] };
+  const fallback = {
+    metronomeOn: false, bpm: BPM.fallback,
+    metroVol: VOL.metro, cdVol: VOL.cd, vibrate: true, countdowns: [],
+  };
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(RUNSET_KEY)); } catch {}
   if (!saved) return fallback;
+  const level = (v, dflt) =>
+    (Number.isFinite(Number(v)) ? Math.min(1, Math.max(0, Number(v))) : dflt);
   return {
     metronomeOn: !!saved.metronomeOn,
     bpm: snapToRange(saved.bpm, BPM),
+    metroVol: level(saved.metroVol, VOL.metro),
+    cdVol: level(saved.cdVol, VOL.cd),
+    vibrate: saved.vibrate !== false,
     countdowns: (Array.isArray(saved.countdowns) ? saved.countdowns : []).map((c, i) => ({
       id: c.id || Date.now() + i,
       sec: snapToRange(c.sec, CD_SEC),
@@ -1365,6 +1377,7 @@ function audio() {
    and footfall, sine for the countdowns so the two never sound alike. The
    ramps matter: a gain switched on hard clicks and hurts on headphones. */
 function blip(ctx, at, { freq, type = "square", gain = 0.28, ms = 40 }) {
+  if (gain < 0.004) return;      // turned right down; and the ramps need a floor
   const osc = ctx.createOscillator();
   const amp = ctx.createGain();
   osc.type = type;
@@ -1377,9 +1390,71 @@ function blip(ctx, at, { freq, type = "square", gain = 0.28, ms = 40 }) {
   osc.stop(at + ms / 1000 + 0.02);
 }
 
+/* Numbers said out loud beat numbers beeped: there is nothing to decode at
+   mile four. It uses the phone's own voice, so there is no audio to ship and
+   nothing to fetch. Cancelling before each line is what keeps it honest - a
+   queue that falls behind would be saying "three" while the clock is on
+   "one", which is worse than silence. */
+const CAN_SPEAK = "speechSynthesis" in window;
+
+function say(text, volume, fallback) {
+  if (!CAN_SPEAK || volume < 0.02) return false;
+  try {
+    const line = new SpeechSynthesisUtterance(text);
+    line.volume = Math.min(1, volume);
+    line.rate = 1.15;            // said and done before the next second lands
+    let started = false;
+    line.onstart = () => { started = true; };
+    speechSynthesis.cancel();
+    speechSynthesis.speak(line);
+    /* A phone with no voices installed takes the utterance and says nothing,
+       and Chrome has been known to swallow one that follows a cancel. Neither
+       reports a failure, so the tone stands by for a quarter of a second - and
+       stands down if the clock has moved on to the next number by then. */
+    if (fallback) {
+      const second = state.lastAlertSec;
+      setTimeout(() => {
+        if (!started && state.lastAlertSec === second) fallback();
+      }, 350);
+    }
+    return true;
+  } catch { return false; }
+}
+
+/* iOS wants the first utterance to come out of a tap, exactly as it does the
+   first sound. This spends that permission on something inaudible. */
+function primeVoice() {
+  if (!CAN_SPEAK) return;
+  try {
+    const quiet = new SpeechSynthesisUtterance(" ");
+    quiet.volume = 0;
+    speechSynthesis.speak(quiet);
+  } catch {}
+}
+
+/* Vibration is Android-only in practice. iOS has never given Safari the
+   Vibration API, home-screen apps included, so on an iPhone every call below
+   does nothing - which is why the setting says so instead of pretending. */
+const CAN_VIBRATE = typeof navigator.vibrate === "function";
+const METRO_BUZZ = 15;                    // a tap you feel rather than notice
+const CD_BUZZ = [30, 70, 30];             // two: the countdown is running
+const MARK_BUZZ = [30, 70, 30, 70, 200];  // and this is the switch
+
+function buzz(pattern) {
+  if (!CAN_VIBRATE || !state.runSettings.vibrate) return;
+  try { navigator.vibrate(pattern); } catch {}
+}
+
 const metronome = { at: 0, beat: 0, timer: null };
 const METRO_TICK_MS = 25;     // how often the queue is topped up
 const METRO_QUEUE_S = 0.15;   // how far ahead of the sound the queue runs
+const METRO_GAIN = 0.3;       // at full volume, before any ducking
+const DUCK = 0.4;             // what is left of the click while a cue plays
+
+function metroGain() {
+  const g = METRO_GAIN * state.runSettings.metroVol;
+  return state.ducking ? g * DUCK : g;
+}
 
 function startMetronome() {
   stopMetronome();
@@ -1398,9 +1473,14 @@ function startMetronome() {
       // and the whole thing steps back while a countdown is being sounded
       blip(ctx, metronome.at, {
         freq: metronome.beat % 4 === 0 ? 1650 : 1100,
-        gain: state.ducking ? 0.11 : 0.26,
+        gain: metroGain(),
         ms: 32,
       });
+      // the buzz has to land with the click, not when the click was queued
+      if (CAN_VIBRATE && state.runSettings.vibrate) {
+        setTimeout(buzz, Math.max(0, (metronome.at - ctx.currentTime) * 1000),
+          METRO_BUZZ);
+      }
       metronome.at += beat;
       metronome.beat++;
     }
@@ -1417,17 +1497,20 @@ function stopMetronome() {
    second off the stats tick - a beep a fraction late is inaudible as late,
    and the alternative is a second timer to keep in step with the first.
 
-   This is the cue that is acted on, and it has to carry next to a metronome
-   clicking three times a second, so it is a different instrument rather than
-   a different pitch: round sine notes against the click's dry square, low
-   where the click is high, long where the click is short. The last three
-   seconds climb, so how near the mark is can be heard instead of counted, and
-   the mark itself is a two-note chime. While any of it sounds the metronome
-   drops back to under half volume rather than arguing with it. */
+   This is the cue that gets acted on, and it has to carry next to a metronome
+   clicking three times a second, so it isn't a beep in a different pitch - it
+   is the number itself, spoken: "five, four, three, two, one", then "switch".
+   A chime rides under the switch as well, because a phone that has lost its
+   voice mid-run should still mark the moment. Below five seconds out the
+   count goes every fifth second, so a thirty-second warning is six numbers
+   rather than thirty. While any of it sounds the metronome drops back to
+   under half volume rather than arguing with it. */
 
-const CD_TICK = 440;                 // the steady "still counting" note
+const CD_TICK = 440;                 // fallback tones, for a phone with no voice
 const CD_CLIMB = [587, 698, 831];    // three, two, one
 const CD_MARK = [880, 1320];         // and switch
+const CD_TICK_GAIN = 0.36;
+const CD_MARK_GAIN = 0.45;
 
 function runCountdowns(elapsedMs) {
   const secs = Math.floor(elapsedMs / 1000);
@@ -1437,25 +1520,44 @@ function runCountdowns(elapsedMs) {
   if (!state.runSettings.countdowns.length) return;
   const ctx = audio();
   if (!ctx) return;
+  const vol = state.runSettings.cdVol;
 
+  /* Two countdowns can want the same second - one every five minutes and one
+     every ten share every other mark. Work out what this second owes across
+     all of them first, then sound it once: two voices saying "five" over each
+     other is a stutter, and two chimes at once is just louder. The nearest
+     mark wins, because it is the one about to arrive. */
+  let onMark = false;
+  let soonest = null;
   for (const cd of state.runSettings.countdowns) {
     const cycle = cd.min * 60;
     const left = cycle - (secs % cycle);   // a whole cycle left means we're on the mark
-    if (left === cycle) {
-      blip(ctx, ctx.currentTime, { freq: CD_MARK[0], type: "sine", gain: 0.42, ms: 190 });
-      blip(ctx, ctx.currentTime + 0.2, { freq: CD_MARK[1], type: "sine", gain: 0.42, ms: 320 });
-      state.ducking = true;
-    } else if (left <= cd.sec) {
-      const climb = CD_CLIMB[CD_CLIMB.length - left];   // undefined until the last three
-      blip(ctx, ctx.currentTime, {
-        freq: climb || CD_TICK,
-        type: "sine",
-        gain: climb ? 0.38 : 0.32,
-        ms: climb ? 130 : 100,
-      });
-      state.ducking = true;
+    if (left === cycle) { onMark = true; continue; }
+    // the last five one by one, and every fifth second before that
+    if (left <= cd.sec && (left <= 5 || left % 5 === 0)) {
+      if (soonest === null || left < soonest) soonest = left;
     }
   }
+  if (!onMark && soonest === null) return;
+  state.ducking = true;
+
+  if (onMark) {
+    say("switch", vol);
+    blip(ctx, ctx.currentTime, { freq: CD_MARK[0], type: "sine", gain: CD_MARK_GAIN * vol, ms: 190 });
+    blip(ctx, ctx.currentTime + 0.2, { freq: CD_MARK[1], type: "sine", gain: CD_MARK_GAIN * vol, ms: 320 });
+    buzz(MARK_BUZZ);
+    return;
+  }
+
+  const climb = CD_CLIMB[CD_CLIMB.length - soonest];   // undefined above three
+  const tone = () => blip(ctx, ctx.currentTime, {
+    freq: climb || CD_TICK,
+    type: "sine",
+    gain: CD_TICK_GAIN * vol,
+    ms: climb ? 130 : 100,
+  });
+  if (!say(String(soonest), vol, tone)) tone();
+  buzz(CD_BUZZ);
 }
 
 /* ---------- number wheel ----------
@@ -1553,10 +1655,50 @@ function previewMetronome() {
   else stopMetronome();
 }
 
+function renderVolumes() {
+  const show = (input, label, level) => {
+    const pct = Math.round(level * 100);
+    input.value = String(pct);
+    label.textContent = `${pct}%`;
+  };
+  show($("#metro-vol"), $("#metro-vol-val"), state.runSettings.metroVol);
+  show($("#cd-vol"), $("#cd-vol-val"), state.runSettings.cdVol);
+}
+
+function renderVibrate() {
+  const val = $("#vibrate-val");
+  if (!CAN_VIBRATE) {
+    $("#btn-vibrate").disabled = true;
+    val.textContent = "Unavailable";
+    val.classList.add("off");
+    $("#vibrate-hint").textContent =
+      "This phone doesn't offer vibration to web apps — an iPhone never has — " +
+      "so the sound is on its own here.";
+    return;
+  }
+  val.textContent = state.runSettings.vibrate ? "On" : "Off";
+  val.classList.toggle("off", !state.runSettings.vibrate);
+}
+
+/* Volume is guesswork until it's heard, so letting go of the countdown slider
+   plays the cue at the level it was left at. */
+function previewCountdown() {
+  if (state.tracking) return;
+  const ctx = audio();
+  const vol = state.runSettings.cdVol;
+  if (!ctx || vol < 0.02) return;
+  const tone = () => blip(ctx, ctx.currentTime,
+    { freq: CD_CLIMB[0], type: "sine", gain: CD_TICK_GAIN * vol, ms: 130 });
+  if (!say("three", vol, tone)) tone();
+  buzz(CD_BUZZ);
+}
+
 function openRunSettings() {
   const sheet = $("#runset-sheet");
   sheet.hidden = false;
   renderMetronomeSetting();
+  renderVolumes();
+  renderVibrate();
   renderCountdowns();
   // a frame's grace so the slide-up has a starting position to animate from.
   // A timer, not requestAnimationFrame: a page that isn't painting never gets
@@ -1580,6 +1722,7 @@ function renderMetronomeSetting() {
 
   const wrap = $("#bpm-wrap");
   wrap.hidden = !on;
+  $("#metro-vol-wrap").hidden = !on;
   if (!on) return;
   // built after unhiding: a wheel with no layout can't be scrolled to a value
   buildWheel($("#bpm-wheel"), BPM, state.runSettings.bpm, (v) => {
@@ -1599,6 +1742,7 @@ function toggleMetronome() {
 }
 
 function addCountdown() {
+  primeVoice();   // spend this tap on the permission the first number will need
   state.runSettings.countdowns.push({
     id: Date.now(), sec: CD_SEC.fallback, min: CD_MIN.fallback,
   });
@@ -1710,7 +1854,7 @@ function startRun(demo) {
   state.lastAlertSec = 0;
   state.metroMuted = false;
   state.ducking = false;
-  if (state.runSettings.countdowns.length) audio();
+  if (state.runSettings.countdowns.length) { audio(); primeVoice(); }
   startMetronome();
   renderMetroButton();
 
@@ -1857,6 +2001,8 @@ function stopRun() {
   hideDim();
   releaseAwake();
   stopMetronome();
+  if (CAN_SPEAK) speechSynthesis.cancel();   // no "switch" trailing the finish
+  buzz(0);
   renderMetroButton();
 
   const run = {
@@ -3608,6 +3754,23 @@ $("#runset-sheet").addEventListener("click", (e) => {
 });
 $("#btn-metronome").addEventListener("click", toggleMetronome);
 $("#btn-add-countdown").addEventListener("click", addCountdown);
+$("#metro-vol").addEventListener("input", (e) => {
+  state.runSettings.metroVol = Number(e.target.value) / 100;
+  $("#metro-vol-val").textContent = `${e.target.value}%`;
+  saveRunSettings();          // a preview already playing picks it up next click
+});
+$("#cd-vol").addEventListener("input", (e) => {
+  state.runSettings.cdVol = Number(e.target.value) / 100;
+  $("#cd-vol-val").textContent = `${e.target.value}%`;
+  saveRunSettings();
+});
+$("#cd-vol").addEventListener("change", previewCountdown);
+$("#btn-vibrate").addEventListener("click", () => {
+  state.runSettings.vibrate = !state.runSettings.vibrate;
+  saveRunSettings();
+  renderVibrate();
+  buzz(CD_BUZZ);              // so "on" is answered by the thing itself
+});
 $("#btn-metro").addEventListener("click", () => {
   state.metroMuted = !state.metroMuted;
   if (state.metroMuted) stopMetronome();

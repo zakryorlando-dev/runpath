@@ -670,19 +670,43 @@
           </div>
           <span class="wheel-word">beats per minute</span>
         </div>
+        <div id="metro-vol-wrap" class="vol-line" hidden>
+          <span class="vol-label">Volume</span>
+          <input id="metro-vol" class="vol" type="range" min="0" max="100" step="5"
+                 aria-label="Metronome volume">
+          <span class="vol-val" id="metro-vol-val">70%</span>
+        </div>
 
         <div class="sheet-sub">
           <h2 class="settings-sub">Countdowns</h2>
           <button id="btn-add-countdown" class="link-btn add">+ Add countdown</button>
         </div>
         <p class="setting-hint">
-          Something to listen for instead of watching the phone. Low notes
-          count the last seconds away, the final three climb, and the mark
-          itself chimes twice &mdash; a different sound from the metronome,
-          which drops back while they play. Time spent paused doesn't count.
+          Something to listen for instead of watching the phone. The last five
+          seconds are counted out loud &mdash; &ldquo;five, four, three, two,
+          one&rdquo; &mdash; then &ldquo;switch&rdquo; on the mark, with a
+          chime under it. Anything longer counts every fifth second until it
+          gets there. The metronome drops back while it speaks. Time spent
+          paused doesn't count.
         </p>
+        <div class="vol-line">
+          <span class="vol-label">Volume</span>
+          <input id="cd-vol" class="vol" type="range" min="0" max="100" step="5"
+                 aria-label="Countdown volume">
+          <span class="vol-val" id="cd-vol-val">100%</span>
+        </div>
         <div id="countdown-list" class="countdown-list"></div>
         <p id="countdown-empty" class="setting-hint">None yet.</p>
+
+        <h2 class="settings-sub">Vibration</h2>
+        <button id="btn-vibrate" class="setting-row">
+          <span class="setting-name">Buzz along with it</span>
+          <span class="setting-val" id="vibrate-val">On</span>
+        </button>
+        <p class="setting-hint" id="vibrate-hint">
+          A small tap on every metronome click, and a double tap on every
+          second of a countdown, on top of the sound.
+        </p>
       </div>
     </div>
   </div>

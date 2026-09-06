@@ -32,7 +32,7 @@ a Strava API app and enter his own client ID and secret in Settings.
 ## Conventions that matter
 
 - **Deploying a change means bumping two things**: `BUILD` in `app.js` (currently
-  `"12:06"`) and `CACHE` in `sw.js` (currently `runpath-v31`). Skip the cache bump
+  `"12:16"`) and `CACHE` in `sw.js` (currently `runpath-v32`). Skip the cache bump
   and the phone keeps the old files.
 - `BUILD` is printed in the splash's bottom-left corner. It exists so a screen
   recording proves which code the phone is actually running — that has mattered
@@ -88,15 +88,27 @@ every M minutes" (5-30 seconds, 1-30 minutes). Both are timed off the Web Audio
 clock, because a click on a JS timer drifts inside a minute and iOS throttles
 timers once it decides nothing is happening.
 
-The countdown is the cue Zak acts on without looking at the phone, so it is
-built to be unmistakable next to a metronome clicking three times a second:
-sine against the click's square, low against its high, long against its short.
-Steady 440 while counting, 587-698-831 on the last three seconds, a two-note
-chime on the mark, and the metronome ducked to 0.11 for as long as any of it
-is sounding. Change any one of those and check it still cuts through on the
-road - that is the whole point of the feature.
+The countdown is the cue Zak acts on without looking at the phone, so it isn't
+a beep at all: the phone speaks the number. "Five, four, three, two, one",
+then "switch" on the mark, with a two-note chime under the switch and the
+metronome ducked to 40% while any of it plays. Beyond five seconds out it
+counts every fifth second, so a thirty-second warning is six numbers.
 
-Two things there are load-bearing:
+Each has its own volume slider, and a vibration toggle buzzes with both - a
+tap per click, a double tap per counted second. **`navigator.vibrate` does not
+exist on iOS**, Safari or home-screen app, so on Zak's own phone that row
+reads "Unavailable" and does nothing. It is there for Android testers; don't
+"fix" it by removing the guard.
+
+Three things there are load-bearing:
+
+- **Speech is verified, not assumed.** A phone whose voices haven't loaded
+  takes an utterance and silently drops it, and Chrome can swallow one that
+  follows a `cancel()`. `say()` watches for `onstart` and falls back to the
+  old tones after 350 ms, standing down if the clock has moved on.
+- **A second's cue is worked out across every countdown before anything
+  sounds.** Two countdowns sharing a mark used to say "five" over "five" and
+  chime twice.
 
 - **A wheel only commits a value after a finger touches it.** A scroll-snap
   container re-snaps itself when its content changes, and that arrives as a
@@ -107,9 +119,12 @@ Two things there are load-bearing:
   copies that drift apart.
 
 **Open:**
-- Every second of a countdown gets a beep, which is why the range stops at 30.
-  If a longer warning is ever wanted, thin the ticks out rather than raising
-  the cap.
+- Nobody has heard any of this yet. It has been verified by intercepting the
+  audio, speech and vibration calls and reading what they were asked to do -
+  which says nothing about whether it carries on a street.
+- Vibration is untested end to end: no Android phone has run it.
+- The countdown stops at 30 seconds because the last five are counted one by
+  one. A longer warning means thinning the count further, not raising the cap.
 - Confirm the panel now appears on return, and read the build-stamp letters. If
   they show only `t`, iOS sends no exit event and the app-switcher thumbnail
   can't be fixed from inside the page.
